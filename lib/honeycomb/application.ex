@@ -10,9 +10,6 @@ defmodule Honeycomb.Application do
     children = [
       # Starts a worker by calling: Honeycomb.Worker.start_link(arg)
       # {Honeycomb.Worker, arg}
-      {Registry, keys: :unique, name: Honeycomb.Registry},
-      {Registry, keys: :unique, name: Honeycomb.Scheduler.Registry},
-      {Registry, keys: :unique, name: Honeycomb.Runner.Registry}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

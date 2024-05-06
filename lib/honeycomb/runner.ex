@@ -11,7 +11,7 @@ defmodule Honeycomb.Runner do
 
   def start_link(opts \\ []) do
     name = Keyword.get(opts, :name, __MODULE__)
-    name = registered_name(name)
+    name = namegen(name)
 
     DynamicSupervisor.start_link(__MODULE__, [], name: name)
   end
@@ -33,6 +33,6 @@ defmodule Honeycomb.Runner do
       end
     end
 
-    DynamicSupervisor.start_child(registered_name(server), {Task, task})
+    DynamicSupervisor.start_child(namegen(server), {Task, task})
   end
 end

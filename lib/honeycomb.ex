@@ -10,32 +10,18 @@ defmodule Honeycomb do
 
   import Honeycomb.Helper
 
-  @spec brew_honey(atom, atom | String.t(), (-> any)) :: {:ok, Bee.t()} | {:error, any}
-  def brew_honey(server, name, fun) do
-    GenServer.call(registered_name(server, Scheduler), {:run, name, fun})
-  end
-
-  @spec bee(atom, atom | String.t()) :: Bee.t() | nil
-  def bee(server, name) do
-    bees = GenServer.call(registered_name(server, Scheduler), :bees)
-
-    bees[name]
-  end
-
-  @spec bees(atom) :: [Bee.t()]
-  def bees(server) do
-    bees = GenServer.call(registered_name(server, Scheduler), :bees)
-
-    bees
-    |> Enum.into([])
-    |> Enum.map(&elem(&1, 1))
-  end
-
   def start_link(opts \\ []) do
     key = Keyword.get(opts, :name, __MODULE__)
-    name = registered_name(key)
+    name = namegen(key)
 
     Supervisor.start_link(__MODULE__, %{key: key}, name: name)
+  end
+
+  def child_spec(opts) do
+    %{
+      id: namegen(opts[:name]),
+      start: {__MODULE__, :start_link, [opts]}
+    }
   end
 
   def init(%{key: key}) do
@@ -49,5 +35,26 @@ defmodule Honeycomb do
     opts = [strategy: :one_for_one]
 
     Supervisor.init(children, opts)
+  end
+
+  @spec brew_honey(atom, atom | String.t(), (-> any)) :: {:ok, Bee.t()} | {:error, any}
+  def brew_honey(server, name, fun) do
+    GenServer.call(namegen(server, Scheduler), {:run, name, fun})
+  end
+
+  @spec bee(atom, atom | String.t()) :: Bee.t() | nil
+  def bee(server, name) do
+    bees = GenServer.call(namegen(server, Scheduler), :bees)
+
+    bees[name]
+  end
+
+  @spec bees(atom) :: [Bee.t()]
+  def bees(server) do
+    bees = GenServer.call(namegen(server, Scheduler), :bees)
+
+    bees
+    |> Enum.into([])
+    |> Enum.map(&elem(&1, 1))
   end
 end

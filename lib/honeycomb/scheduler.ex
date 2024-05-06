@@ -19,7 +19,7 @@ defmodule Honeycomb.Scheduler do
 
   def start_link(opts \\ []) do
     key = Keyword.get(opts, :name, __MODULE__)
-    name = registered_name(key)
+    name = namegen(key)
 
     GenServer.start_link(__MODULE__, %State{key: key, bees: %{}}, name: name)
   end
@@ -30,11 +30,11 @@ defmodule Honeycomb.Scheduler do
   end
 
   def done(server, name, result) do
-    GenServer.cast(registered_name(server), {:done, name, result})
+    GenServer.cast(namegen(server), {:done, name, result})
   end
 
   def failed(server, name, result) do
-    GenServer.cast(registered_name(server), {:failed, name, result})
+    GenServer.cast(namegen(server), {:failed, name, result})
   end
 
   @impl true
