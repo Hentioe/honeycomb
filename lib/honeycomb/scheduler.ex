@@ -6,9 +6,22 @@ defmodule Honeycomb.Scheduler do
   alias Honeycomb.{Bee, Runner}
 
   require Logger
+  require Honeycomb.Helper
 
-  def start_link(_) do
-    GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
+  import Honeycomb.Helper
+
+  defmodule State do
+    @moduledoc false
+
+    @enforce_keys [:key, :bees]
+    defstruct [:key, :bees]
+  end
+
+  def start_link(opts \\ []) do
+    key = Keyword.get(opts, :name, __MODULE__)
+    name = registered_name(key)
+
+    GenServer.start_link(__MODULE__, %State{key: key, bees: %{}}, name: name)
   end
 
   @impl true
@@ -16,35 +29,37 @@ defmodule Honeycomb.Scheduler do
     {:ok, init_arg}
   end
 
-  def done(name, result) do
-    GenServer.cast(__MODULE__, {:done, name, result})
+  def done(server, name, result) do
+    GenServer.cast(registered_name(server), {:done, name, result})
   end
 
-  def failed(name, result) do
-    GenServer.cast(__MODULE__, {:failed, name, result})
+  def failed(server, name, result) do
+    GenServer.cast(registered_name(server), {:failed, name, result})
   end
 
   @impl true
   def handle_call({:run, name, fun}, _from, state) do
-    if match?(%{status: :running}, Map.get(state, name)) do
+    if match?(%{status: :running}, Map.get(state.bees, name)) do
       {:reply, {:error, :running}, state}
     else
       bee = %Bee{name: name, work_start_at: DateTime.utc_now(), status: :running}
 
-      {:ok, _pid} = Runner.run(name, fun)
+      {:ok, _pid} = Runner.run(state.key, name, fun)
 
-      {:reply, {:ok, bee}, Map.put(state, name, bee)}
+      bees = Map.put(state.bees, name, bee)
+
+      {:reply, {:ok, bee}, %{state | bees: bees}}
     end
   end
 
   @impl true
   def handle_call(:bees, _from, state) do
-    {:reply, state, state}
+    {:reply, state.bees, state}
   end
 
   @impl true
   def handle_cast({result_status, name, result}, state) when result_status in [:done, :failed] do
-    if bee = Map.get(state, name) do
+    if bee = Map.get(state.bees, name) do
       bee = %Bee{
         bee
         | work_end_at: DateTime.utc_now(),
@@ -53,7 +68,9 @@ defmodule Honeycomb.Scheduler do
           result: result
       }
 
-      {:noreply, Map.put(state, name, bee)}
+      bees = Map.put(state.bees, name, bee)
+
+      {:noreply, %{state | bees: bees}}
     else
       # Bee not found
       Logger.warning("Bee not found: #{name}")
