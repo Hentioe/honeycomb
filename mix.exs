@@ -14,9 +14,17 @@ defmodule Honeycomb.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger],
+      extra_applications: [:logger] ++ extra_applications(Mix.env()),
       mod: {Honeycomb.Application, []}
     ]
+  end
+
+  defp extra_applications(:dev) do
+    [:wx, :observer, :runtime_tools]
+  end
+
+  defp extra_applications(_) do
+    []
   end
 
   # Run "mix help deps" to learn about dependencies.
