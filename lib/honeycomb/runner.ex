@@ -29,7 +29,7 @@ defmodule Honeycomb.Runner do
         :ok = Scheduler.done(server, name, r)
       rescue
         e ->
-          :ok = Scheduler.failed(server, name, inspect(e))
+          :ok = Scheduler.failed(server, name, e)
       end
     end
 

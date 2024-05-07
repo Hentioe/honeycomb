@@ -17,4 +17,24 @@ defmodule HoneycombTest do
     :timer.sleep(15)
     assert Honeycomb.bee(:concurrency_test_1, "t3").status in [:running, :done]
   end
+
+  test "take_honey/2" do
+    {:ok, _} = Honeycomb.start_link(name: :take_honey_test_1)
+
+    Honeycomb.brew_honey(:take_honey_test_1, "t1", fn -> :ok end)
+    Honeycomb.brew_honey(:take_honey_test_1, "t2", fn -> :timer.sleep(20) end)
+    Honeycomb.brew_honey(:take_honey_test_1, "t3", fn -> raise "I am an error" end)
+    :timer.sleep(5)
+    assert Honeycomb.take_honey(:take_honey_test_1, "t1") == {:done, :ok}
+    assert Honeycomb.take_honey(:take_honey_test_1, "t2") == {:error, :undone}
+    :timer.sleep(20)
+    assert Honeycomb.take_honey(:take_honey_test_1, "t2") == {:done, :ok}
+
+    assert Honeycomb.take_honey(:take_honey_test_1, "t3") ==
+             {:failed, %RuntimeError{message: "I am an error"}}
+
+    assert Honeycomb.take_honey(:take_honey_test_1, "t1") == {:error, :absent}
+    assert Honeycomb.take_honey(:take_honey_test_1, "t2") == {:error, :absent}
+    assert Honeycomb.take_honey(:take_honey_test_1, "t3") == {:error, :absent}
+  end
 end

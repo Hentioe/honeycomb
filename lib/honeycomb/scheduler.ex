@@ -71,14 +71,13 @@ defmodule Honeycomb.Scheduler do
   end
 
   @impl true
-  def handle_cast({result_status, name, result}, state) when result_status in [:done, :failed] do
+  def handle_cast({status, name, result}, state) when status in [:done, :failed] do
     if bee = Map.get(state.bees, name) do
       # Update the bee
       bee = %Bee{
         bee
         | work_end_at: DateTime.utc_now(),
-          status: :done,
-          ok: result_status == :done,
+          status: status,
           result: result
       }
 
@@ -100,6 +99,13 @@ defmodule Honeycomb.Scheduler do
 
       {:noreply, state}
     end
+  end
+
+  @impl true
+  def handle_cast({:remove_bee, bee_name}, state) do
+    bees = Map.delete(state.bees, bee_name)
+
+    {:noreply, %{state | bees: bees}}
   end
 
   @impl true

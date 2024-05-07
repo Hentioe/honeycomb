@@ -58,4 +58,30 @@ defmodule Honeycomb do
     |> Enum.into([])
     |> Enum.map(&elem(&1, 1))
   end
+
+  @spec take_honey(atom, String.t()) ::
+          {:done, any} | {:failed, any} | {:error, :absent} | {:error, :undone}
+  def take_honey(server, bee_name) do
+    bees = GenServer.call(namegen(server, Scheduler), :bees)
+
+    case bees[bee_name] do
+      nil ->
+        # Error: Not found
+        {:error, :absent}
+
+      %{status: :done, result: result} ->
+        :ok = GenServer.cast(namegen(server, Scheduler), {:remove_bee, bee_name})
+
+        {:done, result}
+
+      %{status: :failed, result: result} ->
+        :ok = GenServer.cast(namegen(server, Scheduler), {:remove_bee, bee_name})
+
+        {:failed, result}
+
+      _ ->
+        # Error: Not done
+        {:error, :undone}
+    end
+  end
 end
