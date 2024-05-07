@@ -37,4 +37,18 @@ defmodule HoneycombTest do
     assert Honeycomb.take_honey(:take_honey_test_1, "t2") == {:error, :absent}
     assert Honeycomb.take_honey(:take_honey_test_1, "t3") == {:error, :absent}
   end
+
+  test "stateless" do
+    {:ok, _} = Honeycomb.start_link(name: :stateless_test_1)
+
+    Honeycomb.brew_honey(:stateless_test_1, "t1", fn -> :timer.sleep(20) end, stateless: true)
+    Honeycomb.brew_honey(:stateless_test_1, "t2", fn -> :ok end, stateless: true)
+    :timer.sleep(5)
+
+    assert Honeycomb.bee(:stateless_test_1, "t1").status == :running
+    assert Honeycomb.bee(:stateless_test_1, "t2") == nil
+    :timer.sleep(20)
+
+    assert Honeycomb.bee(:stateless_test_1, "t1") == nil
+  end
 end

@@ -40,20 +40,29 @@ defmodule Honeycomb.Scheduler do
   end
 
   def done(server, name, result) do
-    GenServer.cast(namegen(server), {:done, name, result})
+    GenServer.cast(namegen(server), {:homing, :done, name, result})
   end
 
   def failed(server, name, result) do
-    GenServer.cast(namegen(server), {:failed, name, result})
+    GenServer.cast(namegen(server), {:homing, :failed, name, result})
   end
 
   @impl true
-  def handle_call({:run, name, run}, _from, state) when is_function(run) do
+  def handle_call({:run, name, run, opts}, _from, state) when is_function(run) do
     if match?(%{status: :running}, Map.get(state.bees, name)) do
       {:reply, {:error, :running}, state}
     else
+      # Check if the bee is stateless
+      stateless = Keyword.get(opts, :stateless, false)
       # Create a bee
-      bee = %Bee{name: name, run: run, work_start_at: DateTime.utc_now(), status: :pending}
+      bee = %Bee{
+        name: name,
+        run: run,
+        work_start_at: DateTime.utc_now(),
+        status: :pending,
+        stateless: stateless
+      }
+
       # Merge the bee to the bees
       bees = Map.put(state.bees, name, bee)
       # Add to queue
@@ -71,18 +80,24 @@ defmodule Honeycomb.Scheduler do
   end
 
   @impl true
-  def handle_cast({status, name, result}, state) when status in [:done, :failed] do
+  def handle_cast({:homing, status, name, result}, state) when status in [:done, :failed] do
     if bee = Map.get(state.bees, name) do
-      # Update the bee
-      bee = %Bee{
-        bee
-        | work_end_at: DateTime.utc_now(),
-          status: status,
-          result: result
-      }
+      # Update the bees
+      bees =
+        if bee.stateless do
+          Map.delete(state.bees, name)
+        else
+          # Update the bee
+          bee = %Bee{
+            bee
+            | work_end_at: DateTime.utc_now(),
+              status: status,
+              result: result
+          }
 
-      # Merge the bee to the bees
-      bees = Map.put(state.bees, name, bee)
+          Map.put(state.bees, name, bee)
+        end
+
       # Update the running count
       running_count = state.running_count - 1
 
@@ -96,8 +111,6 @@ defmodule Honeycomb.Scheduler do
 
       # Recheck the queue
       Process.send_after(self(), :check_queue, 0)
-
-      {:noreply, state}
     end
   end
 

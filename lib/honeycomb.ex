@@ -38,9 +38,12 @@ defmodule Honeycomb do
     Supervisor.init(children, opts)
   end
 
-  @spec brew_honey(atom, atom | String.t(), (-> any)) :: {:ok, Bee.t()} | {:error, any}
-  def brew_honey(server, name, fun) do
-    GenServer.call(namegen(server, Scheduler), {:run, name, fun})
+  @type brew_honey_opts :: [stateless: boolean()]
+
+  @spec brew_honey(atom, atom | String.t(), (-> any), brew_honey_opts()) ::
+          {:ok, Bee.t()} | {:error, any}
+  def brew_honey(server, name, fun, opts \\ []) do
+    GenServer.call(namegen(server, Scheduler), {:run, name, fun, opts})
   end
 
   @spec bee(atom, atom | String.t()) :: Bee.t() | nil
