@@ -51,4 +51,22 @@ defmodule HoneycombTest do
 
     assert Honeycomb.bee(:stateless_test_1, "t1") == nil
   end
+
+  test "delay support" do
+    {:ok, _} = Honeycomb.start_link(name: :delay_test_1)
+
+    Honeycomb.brew_honey_after(:delay_test_1, "t1", fn -> :ok end, 20)
+
+    :timer.sleep(5)
+    assert Honeycomb.bee(:delay_test_1, "t1").expected_run_at > DateTime.utc_now()
+    assert Honeycomb.bee(:delay_test_1, "t1").status == :pending
+    assert Honeycomb.bee(:delay_test_1, "t1").work_start_at == nil
+    :timer.sleep(20)
+
+    assert Honeycomb.bee(:delay_test_1, "t1").status == :done
+    assert Honeycomb.bee(:delay_test_1, "t1").work_start_at != nil
+
+    assert Honeycomb.bee(:delay_test_1, "t1").work_start_at >=
+             Honeycomb.bee(:delay_test_1, "t1").expected_run_at
+  end
 end

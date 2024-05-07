@@ -38,11 +38,19 @@ defmodule Honeycomb do
     Supervisor.init(children, opts)
   end
 
-  @type brew_honey_opts :: [stateless: boolean()]
+  @type brew_honey_opts :: [stateless: boolean(), delay: non_neg_integer()]
 
   @spec brew_honey(atom, atom | String.t(), (-> any), brew_honey_opts()) ::
           {:ok, Bee.t()} | {:error, any}
   def brew_honey(server, name, fun, opts \\ []) do
+    GenServer.call(namegen(server, Scheduler), {:run, name, fun, opts})
+  end
+
+  @spec brew_honey_after(atom, atom | String.t(), (-> any), non_neg_integer(), brew_honey_opts()) ::
+          {:ok, Bee.t()} | {:error, any}
+  def brew_honey_after(server, name, fun, millisecond, opts \\ []) do
+    opts = Keyword.merge(opts, delay: millisecond)
+
     GenServer.call(namegen(server, Scheduler), {:run, name, fun, opts})
   end
 

@@ -15,7 +15,13 @@ defmodule Honeycomb.Scheduler do
     @moduledoc false
 
     @enforce_keys [:key]
-    defstruct [:key, bees: %{}, queue: Queue.new(), running_count: 0, concurrency: :infinity]
+    defstruct [
+      :key,
+      bees: %{},
+      queue: Queue.new(),
+      running_count: 0,
+      concurrency: :infinity
+    ]
 
     @type t :: %__MODULE__{
             key: atom,
@@ -28,10 +34,14 @@ defmodule Honeycomb.Scheduler do
 
   def start_link(opts \\ []) do
     key = Keyword.get(opts, :name) || raise "Missing :name option"
-    concurrency = Keyword.get(opts, :concurrency) || :infinity
     name = namegen(key)
+    concurrency = Keyword.get(opts, :concurrency) || :infinity
 
-    GenServer.start_link(__MODULE__, %State{key: key, concurrency: concurrency}, name: name)
+    GenServer.start_link(
+      __MODULE__,
+      %State{key: key, concurrency: concurrency},
+      name: name
+    )
   end
 
   @impl true
@@ -54,11 +64,12 @@ defmodule Honeycomb.Scheduler do
     else
       # Check if the bee is stateless
       stateless = Keyword.get(opts, :stateless, false)
+      delay = Keyword.get(opts, :delay, 0)
       # Create a bee
       bee = %Bee{
         name: name,
         run: run,
-        work_start_at: DateTime.utc_now(),
+        expected_run_at: DateTime.add(DateTime.utc_now(), delay, :millisecond),
         status: :pending,
         stateless: stateless
       }
@@ -66,7 +77,18 @@ defmodule Honeycomb.Scheduler do
       # Merge the bee to the bees
       bees = Map.put(state.bees, name, bee)
       # Add to queue
-      queue = Queue.in(bee, state.queue)
+      queue =
+        if delay == 0 do
+          Queue.in(bee, state.queue)
+        else
+          state.queue
+        end
+
+      if delay > 0 do
+        # Transfer the bee to the delay_bees
+        Process.send_after(self(), {:transfer_bee, name}, delay)
+      end
+
       # Check the queue immediately
       Process.send_after(self(), :check_queue, 0)
 
@@ -139,6 +161,22 @@ defmodule Honeycomb.Scheduler do
     end
   end
 
+  def handle_info({:transfer_bee, name}, state) do
+    # Transfer the bee from delay_bees to queue
+    if bee = Map.get(state.bees, name) do
+      queue = Queue.in(bee, state.queue)
+
+      # Recheck the queue
+      Process.send_after(self(), :check_queue, 0)
+
+      {:noreply, %{state | queue: queue}}
+    else
+      Logger.warning("Not found bee to transfer: #{name}")
+
+      {:noreply, state}
+    end
+  end
+
   @spec run_out({{:value, Bee.t()}, Queue.queue()} | {:empty, Queue.queue()}, State.t()) ::
           {:noreply, State.t()}
   defp run_out({{:value, bee}, queue}, state) do
@@ -146,7 +184,7 @@ defmodule Honeycomb.Scheduler do
     {:ok, _pid} = Runner.run(state.key, bee.name, bee.run)
 
     # Update the bee status
-    bee = %Bee{bee | status: :running}
+    bee = %Bee{bee | status: :running, work_start_at: DateTime.utc_now()}
     bees = Map.put(state.bees, bee.name, bee)
 
     # Update the running count
