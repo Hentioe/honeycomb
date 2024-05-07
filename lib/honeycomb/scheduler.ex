@@ -66,10 +66,13 @@ defmodule Honeycomb.Scheduler do
       stateless = Keyword.get(opts, :stateless, false)
       delay = Keyword.get(opts, :delay, 0)
       # Create a bee
+      now_dt = DateTime.utc_now()
+
       bee = %Bee{
         name: name,
         run: run,
-        expected_run_at: DateTime.add(DateTime.utc_now(), delay, :millisecond),
+        create_at: now_dt,
+        expected_run_at: DateTime.add(now_dt, delay, :millisecond),
         status: :pending,
         stateless: stateless
       }
@@ -184,6 +187,7 @@ defmodule Honeycomb.Scheduler do
     {:ok, _pid} = Runner.run(state.key, bee.name, bee.run)
 
     # Update the bee status
+    IO.inspect(DateTime.utc_now())
     bee = %Bee{bee | status: :running, work_start_at: DateTime.utc_now()}
     bees = Map.put(state.bees, bee.name, bee)
 
