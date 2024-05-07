@@ -12,9 +12,10 @@ defmodule Honeycomb do
 
   def start_link(opts \\ []) do
     key = Keyword.get(opts, :name, __MODULE__)
+    concurrency = Keyword.get(opts, :concurrency) || :infinity
     name = namegen(key)
 
-    Supervisor.start_link(__MODULE__, %{key: key}, name: name)
+    Supervisor.start_link(__MODULE__, %{key: key, concurrency: concurrency}, name: name)
   end
 
   def child_spec(opts) do
@@ -24,9 +25,9 @@ defmodule Honeycomb do
     }
   end
 
-  def init(%{key: key}) do
+  def init(%{key: key, concurrency: concurrency}) do
     children = [
-      {__MODULE__.Scheduler, name: key},
+      {__MODULE__.Scheduler, name: key, concurrency: concurrency},
       {__MODULE__.Runner, name: key}
     ]
 
