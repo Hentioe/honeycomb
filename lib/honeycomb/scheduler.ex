@@ -72,7 +72,7 @@ defmodule Honeycomb.Scheduler do
         name: name,
         run: run,
         create_at: now_dt,
-        expected_run_at: DateTime.add(now_dt, delay, :millisecond),
+        expect_run_at: DateTime.add(now_dt, delay, :millisecond),
         status: :pending,
         stateless: stateless
       }

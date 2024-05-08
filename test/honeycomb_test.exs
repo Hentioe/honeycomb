@@ -58,7 +58,7 @@ defmodule HoneycombTest do
     Honeycomb.brew_honey_after(:delay_test_1, "t1", fn -> :ok end, 20)
 
     :timer.sleep(5)
-    assert Honeycomb.bee(:delay_test_1, "t1").expected_run_at > DateTime.utc_now()
+    assert Honeycomb.bee(:delay_test_1, "t1").expect_run_at > DateTime.utc_now()
     assert Honeycomb.bee(:delay_test_1, "t1").status == :pending
     assert Honeycomb.bee(:delay_test_1, "t1").work_start_at == nil
     :timer.sleep(20)
@@ -67,6 +67,6 @@ defmodule HoneycombTest do
     assert Honeycomb.bee(:delay_test_1, "t1").work_start_at != nil
 
     assert Honeycomb.bee(:delay_test_1, "t1").work_start_at >=
-             Honeycomb.bee(:delay_test_1, "t1").expected_run_at
+             Honeycomb.bee(:delay_test_1, "t1").expect_run_at
   end
 end
