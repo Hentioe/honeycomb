@@ -187,7 +187,6 @@ defmodule Honeycomb.Scheduler do
     {:ok, _pid} = Runner.run(state.key, bee.name, bee.run)
 
     # Update the bee status
-    IO.inspect(DateTime.utc_now())
     bee = %Bee{bee | status: :running, work_start_at: DateTime.utc_now()}
     bees = Map.put(state.bees, bee.name, bee)
 
