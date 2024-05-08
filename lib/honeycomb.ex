@@ -71,7 +71,7 @@ defmodule Honeycomb do
   end
 
   @spec take_honey(atom, String.t()) ::
-          {:done, any} | {:failed, any} | {:error, :absent} | {:error, :undone}
+          {:done, any} | {:raised, any} | {:error, :absent} | {:error, :undone}
   def take_honey(server, bee_name) do
     bees = GenServer.call(namegen(server, Scheduler), :bees)
 
@@ -85,10 +85,10 @@ defmodule Honeycomb do
 
         {:done, result}
 
-      %{status: :failed, result: result} ->
+      %{status: :raised, result: result} ->
         :ok = GenServer.cast(namegen(server, Scheduler), {:remove_bee, bee_name})
 
-        {:failed, result}
+        {:raised, result}
 
       _ ->
         # Error: Not done

@@ -53,8 +53,8 @@ defmodule Honeycomb.Scheduler do
     GenServer.cast(namegen(server), {:homing, :done, name, result})
   end
 
-  def failed(server, name, result) do
-    GenServer.cast(namegen(server), {:homing, :failed, name, result})
+  def raised(server, name, result) do
+    GenServer.cast(namegen(server), {:homing, :raised, name, result})
   end
 
   @impl true
@@ -105,7 +105,7 @@ defmodule Honeycomb.Scheduler do
   end
 
   @impl true
-  def handle_cast({:homing, status, name, result}, state) when status in [:done, :failed] do
+  def handle_cast({:homing, status, name, result}, state) when status in [:done, :raised] do
     if bee = Map.get(state.bees, name) do
       # Update the bees
       bees =

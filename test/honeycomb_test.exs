@@ -31,7 +31,7 @@ defmodule HoneycombTest do
     assert Honeycomb.take_honey(:take_honey_test_1, "t2") == {:done, :ok}
 
     assert Honeycomb.take_honey(:take_honey_test_1, "t3") ==
-             {:failed, %RuntimeError{message: "I am an error"}}
+             {:raised, %RuntimeError{message: "I am an error"}}
 
     assert Honeycomb.take_honey(:take_honey_test_1, "t1") == {:error, :absent}
     assert Honeycomb.take_honey(:take_honey_test_1, "t2") == {:error, :absent}

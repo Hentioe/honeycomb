@@ -13,7 +13,7 @@ defmodule Honeycomb.Bee do
     :result
   ]
 
-  @type status :: :pending | :running | :done | :failed
+  @type status :: :pending | :running | :done | :raised
   @type t :: %__MODULE__{
           name: atom | String.t(),
           status: status,
