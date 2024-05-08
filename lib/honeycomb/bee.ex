@@ -5,6 +5,7 @@ defmodule Honeycomb.Bee do
     :name,
     :status,
     :run,
+    :task_pid,
     :create_at,
     :expect_run_at,
     :work_start_at,
@@ -13,11 +14,12 @@ defmodule Honeycomb.Bee do
     :result
   ]
 
-  @type status :: :pending | :running | :done | :raised
+  @type status :: :pending | :running | :done | :raised | :terminated
   @type t :: %__MODULE__{
           name: atom | String.t(),
           status: status,
           run: (-> any()),
+          task_pid: pid(),
           create_at: DateTime.t(),
           expect_run_at: DateTime.t(),
           work_start_at: DateTime.t(),

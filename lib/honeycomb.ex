@@ -95,4 +95,8 @@ defmodule Honeycomb do
         {:error, :undone}
     end
   end
+
+  def terminate_bee(server, name) do
+    GenServer.cast(namegen(server, Scheduler), {:terminate_bee, name})
+  end
 end

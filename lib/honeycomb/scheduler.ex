@@ -19,7 +19,7 @@ defmodule Honeycomb.Scheduler do
       :key,
       bees: %{},
       queue: Queue.new(),
-      running_count: 0,
+      running_counter: 0,
       concurrency: :infinity
     ]
 
@@ -27,7 +27,7 @@ defmodule Honeycomb.Scheduler do
             key: atom,
             bees: map(),
             queue: Queue.queue(),
-            running_count: non_neg_integer(),
+            running_counter: non_neg_integer(),
             concurrency: :infinity | non_neg_integer()
           }
   end
@@ -59,9 +59,10 @@ defmodule Honeycomb.Scheduler do
 
   @impl true
   def handle_call({:run, name, run, opts}, _from, state) when is_function(run) do
-    if match?(%{status: :running}, Map.get(state.bees, name)) do
-      {:reply, {:error, :running}, state}
-    else
+    bee = Map.get(state.bees, name)
+
+    # Only bee is nil, or the bee status is not `:running` or `:pending`, can create a bee.
+    if is_nil(bee) || bee.status not in [:running, :pending] do
       # Check if the bee is stateless
       stateless = Keyword.get(opts, :stateless, false)
       delay = Keyword.get(opts, :delay, 0)
@@ -96,12 +97,43 @@ defmodule Honeycomb.Scheduler do
       Process.send_after(self(), :check_queue, 0)
 
       {:reply, {:ok, bee}, %{state | bees: bees, queue: queue}}
+    else
+      {:reply, {:error, bee.status}, state}
     end
   end
 
   @impl true
   def handle_call(:bees, _from, state) do
     {:reply, state.bees, state}
+  end
+
+  def handle_cast({:terminate_bee, name}, state) do
+    bee = Map.get(state.bees, name)
+
+    cond do
+      is_nil(bee) ->
+        Logger.warning("Bee not found: #{name}")
+
+        {:noreply, state}
+
+      is_nil(bee.task_pid) ->
+        Logger.warning("Bee task not found: #{name}")
+
+        {:noreply, state}
+
+      true ->
+        # Terminate the runner child
+        DynamicSupervisor.terminate_child(namegen(state.key, Runner), bee.task_pid)
+        # Update the bee
+        bee = %Bee{bee | status: :terminated, task_pid: nil}
+        bees = Map.put(state.bees, name, bee)
+        # Update the running counter
+        running_counter = state.running_counter - 1
+        # Recheck the queue
+        Process.send_after(self(), :check_queue, 0)
+
+        {:noreply, %{state | bees: bees, running_counter: running_counter}}
+    end
   end
 
   @impl true
@@ -115,7 +147,8 @@ defmodule Honeycomb.Scheduler do
           # Update the bee
           bee = %Bee{
             bee
-            | work_end_at: DateTime.utc_now(),
+            | task_pid: nil,
+              work_end_at: DateTime.utc_now(),
               status: status,
               result: result
           }
@@ -123,13 +156,13 @@ defmodule Honeycomb.Scheduler do
           Map.put(state.bees, name, bee)
         end
 
-      # Update the running count
-      running_count = state.running_count - 1
+      # Update the running counter
+      running_counter = state.running_counter - 1
 
       # Recheck the queue
       Process.send_after(self(), :check_queue, 0)
 
-      {:noreply, %{state | bees: bees, running_count: running_count}}
+      {:noreply, %{state | bees: bees, running_counter: running_counter}}
     else
       # Bee not found
       Logger.warning("Bee not found: #{name}")
@@ -149,16 +182,16 @@ defmodule Honeycomb.Scheduler do
   @impl true
   def handle_info(:check_queue, %{concurrency: concurrency} = state)
       when concurrency == :infinity do
-    run_out(Queue.out(state.queue), state)
+    run_queue_out(Queue.out(state.queue), state)
   end
 
   @impl true
   def handle_info(:check_queue, %{concurrency: concurrency} = state)
       when is_integer(concurrency) do
-    if state.running_count < concurrency do
-      run_out(Queue.out(state.queue), state)
+    if state.running_counter < concurrency do
+      run_queue_out(Queue.out(state.queue), state)
     else
-      Logger.debug("Running count is at the concurrency limit: #{concurrency}")
+      Logger.debug("Running counter is at the concurrency limit: #{concurrency}")
 
       {:noreply, state}
     end
@@ -180,23 +213,23 @@ defmodule Honeycomb.Scheduler do
     end
   end
 
-  @spec run_out({{:value, Bee.t()}, Queue.queue()} | {:empty, Queue.queue()}, State.t()) ::
+  @spec run_queue_out({{:value, Bee.t()}, Queue.queue()} | {:empty, Queue.queue()}, State.t()) ::
           {:noreply, State.t()}
-  defp run_out({{:value, bee}, queue}, state) do
+  defp run_queue_out({{:value, bee}, queue}, state) do
     # Run the bee
-    {:ok, _pid} = Runner.run(state.key, bee.name, bee.run)
+    {:ok, pid} = Runner.run(state.key, bee.name, bee.run)
 
     # Update the bee status
-    bee = %Bee{bee | status: :running, work_start_at: DateTime.utc_now()}
+    bee = %Bee{bee | status: :running, work_start_at: DateTime.utc_now(), task_pid: pid}
     bees = Map.put(state.bees, bee.name, bee)
 
-    # Update the running count
-    running_count = state.running_count + 1
+    # Update the running counter
+    running_counter = state.running_counter + 1
 
-    {:noreply, %{state | bees: bees, queue: queue, running_count: running_count}}
+    {:noreply, %{state | bees: bees, queue: queue, running_counter: running_counter}}
   end
 
-  defp run_out({:empty, _}, state) do
+  defp run_queue_out({:empty, _}, state) do
     # No bee in the queue
     {:noreply, state}
   end

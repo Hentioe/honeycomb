@@ -2,6 +2,8 @@ defmodule HoneycombTest do
   use ExUnit.Case
   doctest Honeycomb
 
+  import Honeycomb.Helper
+
   test "concurrency test" do
     Honeycomb.start_link(name: :concurrency_test_1, concurrency: 2)
 
@@ -68,5 +70,29 @@ defmodule HoneycombTest do
 
     assert Honeycomb.bee(:delay_test_1, "t1").work_start_at >=
              Honeycomb.bee(:delay_test_1, "t1").expect_run_at
+  end
+
+  test "terminate_bee/2" do
+    {:ok, _} = Honeycomb.start_link(name: :terminate_bee_test_1)
+    runner_server = namegen(:terminate_bee_test_1, Honeycomb.Runner)
+
+    Honeycomb.brew_honey(:terminate_bee_test_1, "t1", fn -> :timer.sleep(20) end)
+    # 测试未启动时执行终止，无效果
+    assert Honeycomb.terminate_bee(:terminate_bee_test_1, "t1") == :ok
+    assert Honeycomb.bee(:terminate_bee_test_1, "t1").status != :terminated
+    # 测试启动后终止，成功
+    :timer.sleep(5)
+    assert Honeycomb.bee(:terminate_bee_test_1, "t1").status == :running
+    # Runner task 数量为 1
+    assert DynamicSupervisor.count_children(runner_server).active == 1
+    # 运行以后存在 task pid
+    pid = Honeycomb.bee(:terminate_bee_test_1, "t1").task_pid
+    assert is_pid(pid)
+    # 终止后 task_pid 为空，状态为 terminated
+    assert Honeycomb.terminate_bee(:terminate_bee_test_1, "t1") == :ok
+    assert Honeycomb.bee(:terminate_bee_test_1, "t1").status == :terminated
+    assert Honeycomb.bee(:terminate_bee_test_1, "t1").task_pid == nil
+    # 按照此前的 pid 验证 task 已经终止
+    assert DynamicSupervisor.terminate_child(runner_server, pid) == {:error, :not_found}
   end
 end
