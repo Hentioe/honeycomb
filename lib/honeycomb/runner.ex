@@ -10,8 +10,8 @@ defmodule Honeycomb.Runner do
   import Honeycomb.Helper
 
   def start_link(opts \\ []) do
-    name = Keyword.get(opts, :name, __MODULE__)
-    name = namegen(name)
+    id = Keyword.get(opts, :id, __MODULE__)
+    name = namegen(id)
 
     DynamicSupervisor.start_link(__MODULE__, [], name: name)
   end
@@ -21,18 +21,18 @@ defmodule Honeycomb.Runner do
     DynamicSupervisor.init(strategy: :one_for_one)
   end
 
-  def run(server, name, fun) do
+  def run(queen, name, fun) do
     task = fn ->
       try do
         r = fun.()
 
-        :ok = Scheduler.done(server, name, r)
+        :ok = Scheduler.done(queen, name, r)
       rescue
         e ->
-          :ok = Scheduler.raised(server, name, e)
+          :ok = Scheduler.raised(queen, name, e)
       end
     end
 
-    DynamicSupervisor.start_child(namegen(server), {Task, task})
+    DynamicSupervisor.start_child(namegen(queen), {Task, task})
   end
 end

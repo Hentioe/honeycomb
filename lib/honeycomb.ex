@@ -11,11 +11,13 @@ defmodule Honeycomb do
   import Honeycomb.Helper
 
   def start_link(opts \\ []) do
-    key = Keyword.get(opts, :name, __MODULE__)
-    concurrency = Keyword.get(opts, :concurrency) || :infinity
-    name = namegen(key)
+    queen = Keyword.get(opts, :queen) || raise ArgumentError, "queen is required"
+    queen_opts = queen.opts()
 
-    Supervisor.start_link(__MODULE__, %{key: key, concurrency: concurrency}, name: name)
+    id = queen_opts.id
+    name = namegen(id)
+
+    Supervisor.start_link(__MODULE__, queen_opts, name: name)
   end
 
   def child_spec(opts) do
@@ -25,10 +27,10 @@ defmodule Honeycomb do
     }
   end
 
-  def init(%{key: key, concurrency: concurrency}) do
+  def init(%{id: id, concurrency: concurrency}) do
     children = [
-      {__MODULE__.Scheduler, name: key, concurrency: concurrency},
-      {__MODULE__.Runner, name: key}
+      {__MODULE__.Scheduler, id: id, concurrency: concurrency},
+      {__MODULE__.Runner, id: id}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
@@ -42,28 +44,28 @@ defmodule Honeycomb do
 
   @spec brew_honey(atom, atom | String.t(), (-> any), brew_honey_opts()) ::
           {:ok, Bee.t()} | {:error, any}
-  def brew_honey(server, name, fun, opts \\ []) do
-    GenServer.call(namegen(server, Scheduler), {:run, name, fun, opts})
+  def brew_honey(queen, name, fun, opts \\ []) do
+    GenServer.call(namegen(queen, Scheduler), {:run, name, fun, opts})
   end
 
   @spec brew_honey_after(atom, atom | String.t(), (-> any), non_neg_integer(), brew_honey_opts()) ::
           {:ok, Bee.t()} | {:error, any}
-  def brew_honey_after(server, name, fun, millisecond, opts \\ []) do
+  def brew_honey_after(queen, name, fun, millisecond, opts \\ []) do
     opts = Keyword.merge(opts, delay: millisecond)
 
-    GenServer.call(namegen(server, Scheduler), {:run, name, fun, opts})
+    GenServer.call(namegen(queen, Scheduler), {:run, name, fun, opts})
   end
 
   @spec bee(atom, atom | String.t()) :: Bee.t() | nil
-  def bee(server, name) do
-    bees = GenServer.call(namegen(server, Scheduler), :bees)
+  def bee(queen, name) do
+    bees = GenServer.call(namegen(queen, Scheduler), :bees)
 
     bees[name]
   end
 
   @spec bees(atom) :: [Bee.t()]
-  def bees(server) do
-    bees = GenServer.call(namegen(server, Scheduler), :bees)
+  def bees(queen) do
+    bees = GenServer.call(namegen(queen, Scheduler), :bees)
 
     bees
     |> Enum.into([])
@@ -72,8 +74,8 @@ defmodule Honeycomb do
 
   @spec take_honey(atom, String.t()) ::
           {:done, any} | {:raised, any} | {:error, :absent} | {:error, :undone}
-  def take_honey(server, bee_name) do
-    bees = GenServer.call(namegen(server, Scheduler), :bees)
+  def take_honey(queen, bee_name) do
+    bees = GenServer.call(namegen(queen, Scheduler), :bees)
 
     case bees[bee_name] do
       nil ->
@@ -81,12 +83,12 @@ defmodule Honeycomb do
         {:error, :absent}
 
       %{status: :done, result: result} ->
-        :ok = remove_bee(server, bee_name)
+        :ok = remove_bee(queen, bee_name)
 
         {:done, result}
 
       %{status: :raised, result: result} ->
-        :ok = remove_bee(server, bee_name)
+        :ok = remove_bee(queen, bee_name)
 
         {:raised, result}
 
@@ -98,27 +100,27 @@ defmodule Honeycomb do
   end
 
   @spec remove_bee(atom, String.t()) :: :ok
-  def remove_bee(server, name) do
+  def remove_bee(queen, name) do
     # todo: 返回错误，当 bee 正在运行时拒绝移除。
-    GenServer.cast(namegen(server, Scheduler), {:remove_bee, name})
+    GenServer.cast(namegen(queen, Scheduler), {:remove_bee, name})
   end
 
   @spec terminate_bee(atom, String.t()) :: {:ok, Bee.t()} | {:error, any}
-  def terminate_bee(server, name) do
-    GenServer.call(namegen(server, Scheduler), {:terminate_bee, name})
+  def terminate_bee(queen, name) do
+    GenServer.call(namegen(queen, Scheduler), {:terminate_bee, name})
   end
 
   @spec cancel_bee(atom(), String.t()) :: {:ok, Bee.t()} | {:error, any}
-  def cancel_bee(server, name) do
-    GenServer.call(namegen(server, Scheduler), {:cancel_bee, name})
+  def cancel_bee(queen, name) do
+    GenServer.call(namegen(queen, Scheduler), {:cancel_bee, name})
   end
 
   @spec stop_bee(atom, String.t()) :: {:ok | :ignore, Bee.t()} | {:error, any}
-  def stop_bee(server, name) do
-    GenServer.call(namegen(server, Scheduler), {:stop_bee, name})
+  def stop_bee(queen, name) do
+    GenServer.call(namegen(queen, Scheduler), {:stop_bee, name})
   end
 
-  def count_pending_bees(server) do
-    GenServer.call(namegen(server, Scheduler), :count_pending_bees)
+  def count_pending_bees(queen) do
+    GenServer.call(namegen(queen, Scheduler), :count_pending_bees)
   end
 end

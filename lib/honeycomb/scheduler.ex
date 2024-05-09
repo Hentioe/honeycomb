@@ -15,9 +15,9 @@ defmodule Honeycomb.Scheduler do
   defmodule State do
     @moduledoc false
 
-    @enforce_keys [:key]
+    @enforce_keys [:id]
     defstruct [
-      :key,
+      :id,
       bees: %{},
       queue: Queue.new(),
       running_counter: 0,
@@ -25,7 +25,7 @@ defmodule Honeycomb.Scheduler do
     ]
 
     @type t :: %__MODULE__{
-            key: atom,
+            id: atom,
             bees: map(),
             queue: Queue.queue(),
             running_counter: non_neg_integer(),
@@ -34,13 +34,13 @@ defmodule Honeycomb.Scheduler do
   end
 
   def start_link(opts \\ []) do
-    key = Keyword.get(opts, :name) || raise "Missing :name option"
-    name = namegen(key)
+    id = Keyword.get(opts, :id) || raise "Missing `:id` option"
+    name = namegen(id)
     concurrency = Keyword.get(opts, :concurrency) || :infinity
 
     GenServer.start_link(
       __MODULE__,
-      %State{key: key, concurrency: concurrency},
+      %State{id: id, concurrency: concurrency},
       name: name
     )
   end
@@ -50,12 +50,12 @@ defmodule Honeycomb.Scheduler do
     {:ok, init_arg}
   end
 
-  def done(server, name, result) do
-    GenServer.cast(namegen(server), {:homing, :done, name, result})
+  def done(queen, name, result) do
+    GenServer.cast(namegen(queen), {:homing, :done, name, result})
   end
 
-  def raised(server, name, result) do
-    GenServer.cast(namegen(server), {:homing, :raised, name, result})
+  def raised(queen, name, result) do
+    GenServer.cast(namegen(queen), {:homing, :raised, name, result})
   end
 
   @impl true
@@ -284,7 +284,7 @@ defmodule Honeycomb.Scheduler do
 
       true ->
         # Terminate the runner child
-        DynamicSupervisor.terminate_child(namegen(state.key, Runner), bee.task_pid)
+        DynamicSupervisor.terminate_child(namegen(state.id, Runner), bee.task_pid)
         # Update the bee
         bee = %Bee{bee | status: :terminated, task_pid: nil}
         bees = Map.put(state.bees, name, bee)
@@ -301,7 +301,7 @@ defmodule Honeycomb.Scheduler do
           {:noreply, State.t()}
   defp run_queue_out({{:value, bee}, queue}, state) do
     # Run the bee
-    {:ok, pid} = Runner.run(state.key, bee.name, bee.run)
+    {:ok, pid} = Runner.run(state.id, bee.name, bee.run)
 
     # Update the bee status
     bee = %Bee{bee | status: :running, work_start_at: DateTime.utc_now(), task_pid: pid}

@@ -5,7 +5,8 @@ defmodule HoneycombTest do
   import Honeycomb.Helper
 
   test "concurrency test" do
-    Honeycomb.start_link(name: :concurrency_test_1, concurrency: 2)
+    def_queen(__MODULE__.ConcurrencyTest1, id: :concurrency_test_1, concurrency: 2)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.ConcurrencyTest1)
 
     Honeycomb.brew_honey(:concurrency_test_1, "t1", fn -> :timer.sleep(20) end)
     Honeycomb.brew_honey(:concurrency_test_1, "t2", fn -> :timer.sleep(20) end)
@@ -21,7 +22,8 @@ defmodule HoneycombTest do
   end
 
   test "take_honey/2" do
-    {:ok, _} = Honeycomb.start_link(name: :take_honey_test_1)
+    def_queen(__MODULE__.TakeHoneyTest1, id: :take_honey_test_1)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.TakeHoneyTest1)
 
     Honeycomb.brew_honey(:take_honey_test_1, "t1", fn -> :ok end)
     Honeycomb.brew_honey(:take_honey_test_1, "t2", fn -> :timer.sleep(20) end)
@@ -41,7 +43,8 @@ defmodule HoneycombTest do
   end
 
   test "stateless" do
-    {:ok, _} = Honeycomb.start_link(name: :stateless_test_1)
+    def_queen(__MODULE__.StatelessTest1, id: :stateless_test_1)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.StatelessTest1)
 
     Honeycomb.brew_honey(:stateless_test_1, "t1", fn -> :timer.sleep(20) end, stateless: true)
     Honeycomb.brew_honey(:stateless_test_1, "t2", fn -> :ok end, stateless: true)
@@ -55,7 +58,8 @@ defmodule HoneycombTest do
   end
 
   test "delay support" do
-    {:ok, _} = Honeycomb.start_link(name: :delay_test_1)
+    def_queen(__MODULE__.DelayTest1, id: :delay_test_1)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.DelayTest1)
 
     Honeycomb.brew_honey_after(:delay_test_1, "t1", fn -> :ok end, 20)
 
@@ -75,7 +79,8 @@ defmodule HoneycombTest do
   end
 
   test "terminate_bee/2" do
-    {:ok, _} = Honeycomb.start_link(name: :terminate_bee_test_1)
+    def_queen(__MODULE__.TerminateTest1, id: :terminate_bee_test_1)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.TerminateTest1)
     runner_server = namegen(:terminate_bee_test_1, Honeycomb.Runner)
 
     Honeycomb.brew_honey(:terminate_bee_test_1, "t1", fn -> :timer.sleep(20) end)
@@ -101,7 +106,10 @@ defmodule HoneycombTest do
   end
 
   test "cancel_bee/2" do
-    {:ok, _} = Honeycomb.start_link(name: :cancel_bee_test_1)
+    def_queen(__MODULE__.CancelBeeTest1, id: :cancel_bee_test_1)
+    def_queen(__MODULE__.CancelBeeTest2, id: :cancel_bee_test_2, concurrency: 1)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.CancelBeeTest1)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.CancelBeeTest2)
 
     # 测试未启动的延迟任务
     Honeycomb.brew_honey_after(:cancel_bee_test_1, "t1", fn -> :ok end, 20)
@@ -119,7 +127,6 @@ defmodule HoneycombTest do
     assert bad_status == :done
 
     # 测试队列中的等待任务
-    {:ok, _} = Honeycomb.start_link(name: :cancel_bee_test_2, concurrency: 1)
     Honeycomb.brew_honey(:cancel_bee_test_2, "t1", fn -> :timer.sleep(20) end)
     Honeycomb.brew_honey(:cancel_bee_test_2, "t2", fn -> :ok end)
     :timer.sleep(5)
@@ -130,7 +137,10 @@ defmodule HoneycombTest do
   end
 
   test "stop_bee/2" do
-    {:ok, _} = Honeycomb.start_link(name: :stop_bee_test_1)
+    def_queen(__MODULE__.StopBeeTest1, id: :stop_bee_test_1)
+    def_queen(__MODULE__.StopBeeTest2, id: :stop_bee_test_2, concurrency: 1)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.StopBeeTest1)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.StopBeeTest2)
 
     # 测试未启动的延迟任务
     Honeycomb.brew_honey_after(:stop_bee_test_1, "t1", fn -> :ok end, 20)
@@ -153,7 +163,6 @@ defmodule HoneycombTest do
     {:ok, bee} = Honeycomb.stop_bee(:stop_bee_test_1, "t3")
     assert bee.status == :terminated
     # 测试队列中的等待任务
-    {:ok, _} = Honeycomb.start_link(name: :stop_bee_test_2, concurrency: 1)
     Honeycomb.brew_honey(:stop_bee_test_2, "t1", fn -> :timer.sleep(20) end)
     Honeycomb.brew_honey(:stop_bee_test_2, "t2", fn -> :ok end)
     :timer.sleep(5)
