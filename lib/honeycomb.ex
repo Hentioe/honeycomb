@@ -81,22 +81,31 @@ defmodule Honeycomb do
         {:error, :absent}
 
       %{status: :done, result: result} ->
-        :ok = GenServer.cast(namegen(server, Scheduler), {:remove_bee, bee_name})
+        :ok = remove_bee(server, bee_name)
 
         {:done, result}
 
       %{status: :raised, result: result} ->
-        :ok = GenServer.cast(namegen(server, Scheduler), {:remove_bee, bee_name})
+        :ok = remove_bee(server, bee_name)
 
         {:raised, result}
 
+      # todo: 缺乏对 `terminated` 和 `canceled` 的处理。
       _ ->
         # Error: Not done
         {:error, :undone}
     end
   end
 
+  @spec remove_bee(atom, String.t()) :: :ok
+  def remove_bee(server, name) do
+    # todo: 返回错误，当 bee 正在运行时拒绝移除。
+    GenServer.cast(namegen(server, Scheduler), {:remove_bee, name})
+  end
+
+  @spec terminate_bee(atom, String.t()) :: :ok
   def terminate_bee(server, name) do
+    # todo: 终止后立即返回被终止的 bee，并移除 bee。如果尚未运行则返回错误。
     GenServer.cast(namegen(server, Scheduler), {:terminate_bee, name})
   end
 end
