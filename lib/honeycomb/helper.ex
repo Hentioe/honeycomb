@@ -18,16 +18,18 @@ defmodule Honeycomb.Helper do
   end
 
   @doc """
-  Safe call to `ensure?/1` callback function to avoid runtime exceptions.
+  Safe call to `ensure/1` callback function to avoid runtime exceptions.
   """
-  def safe_ensure?(failure_mode, error) do
+  @spec safe_ensure(Honeycomb.FailureMode.t(), any()) ::
+          Honeycomb.FailureMode.Retry.ensure_action()
+  def safe_ensure(failure_mode, error) do
     try do
-      failure_mode.ensure?.(error)
+      failure_mode.ensure.(error)
     rescue
       e ->
-        Logger.error("Error in `ensure?/1` callback: #{inspect(e)}")
+        Logger.error("Error in `ensure/1` callback: #{inspect(e)}")
 
-        false
+        :halt
     end
   end
 end

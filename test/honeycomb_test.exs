@@ -184,7 +184,7 @@ defmodule HoneycombTest do
       id: :retry_test_2,
       failure_mode: %Honeycomb.FailureMode.Retry{
         max_times: 5,
-        ensure?: &Factory.retry_test2_ensure?/1
+        ensure: &Factory.retry_test2_ensure/1
       }
     )
 
@@ -206,7 +206,7 @@ defmodule HoneycombTest do
     assert Honeycomb.bee(:retry_test_1, "t2").retry == 2
     assert Honeycomb.bee(:retry_test_1, "t2").result == %RuntimeError{message: "I am an error"}
 
-    # 用自定义 `ensure?/1` 函数的 Honeycomb 运行一个会报错的任务
+    # 用自定义 `ensure/1` 函数的 Honeycomb 运行一个会报错的任务
     Honeycomb.brew_honey(:retry_test_2, "t1", fn -> raise "I am an error" end)
     :timer.sleep(5)
     assert Honeycomb.bee(:retry_test_2, "t1").status == :raised
@@ -214,12 +214,54 @@ defmodule HoneycombTest do
     assert Honeycomb.bee(:retry_test_2, "t1").result == %RuntimeError{message: "I am an error"}
   end
 
-  test "runtime error ensure?/1" do
+  test "retry enqueue" do
+    def_queen(__MODULE__.RetryEnqueueTest1,
+      id: :retry_enqueue_test_1,
+      failure_mode: %Honeycomb.FailureMode.Retry{
+        max_times: 5,
+        ensure: &Factory.retry_enqueue_test1_ensure/1
+      }
+    )
+
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.RetryEnqueueTest1)
+    {:ok, _} = Factory.RetryTimes.start_link([])
+    # 运行一个会报错的任务
+    Honeycomb.brew_honey(:retry_enqueue_test_1, "t1", fn -> raise "I am an error" end)
+    :timer.sleep(5)
+
+    # 此刻仍然是第一次重试后的状态，因为重试第一次后，第二次的延迟时间是 10ms
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").retry == 1
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").status == :pending
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").result == nil
+    :timer.sleep(20)
+
+    # 此刻是第二次重试后的状态，因为重试第二次后，第三次的延迟时间是 30ms
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").retry == 2
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").status == :pending
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").result == nil
+    :timer.sleep(40)
+
+    # 此刻是第三次重试后的状态，因为重试第三次后，第四次的延迟时间是 40ms
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").retry == 3
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").status == :pending
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").result == nil
+    :timer.sleep(50)
+
+    # 此刻是第三次重试后的状态，因为重试第三次后，第四次的延迟时间是 40ms
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").retry == 4
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").status == :raised
+
+    assert Honeycomb.bee(:retry_enqueue_test_1, "t1").result == %RuntimeError{
+             message: "I am an error"
+           }
+  end
+
+  test "runtime error ensure/1" do
     def_queen(__MODULE__.ErrorEnsureTest1,
       id: :error_ensure_test_1,
       failure_mode: %Honeycomb.FailureMode.Retry{
         max_times: 2,
-        ensure?: fn _ -> raise "I am an error eunsure!" end
+        ensure: fn _ -> raise "I am an error eunsure!" end
       }
     )
 
@@ -228,7 +270,7 @@ defmodule HoneycombTest do
     Honeycomb.brew_honey(:error_ensure_test_1, "t1", fn -> raise "I am an error" end)
     :timer.sleep(5)
     assert Honeycomb.bee(:error_ensure_test_1, "t1").status == :raised
-    # 回调 `ensure?/1` 报错，不会重试
+    # 回调 `ensure/1` 报错，不会重试
     assert Honeycomb.bee(:error_ensure_test_1, "t1").retry == 0
   end
 end

@@ -155,12 +155,12 @@ defmodule Honeycomb.Scheduler do
   end
 
   @impl true
-  def handle_cast({:homing, status, name, result}, state) when status in [:done, :raised] do
+  def handle_cast({:homing, :raised, name, result}, state) do
     bee = Map.get(state.bees, name)
 
-    need_retry? = fn ->
-      if status == :raised && is_struct(state.failure_mode, Retry) do
-        state.failure_mode.max_times > bee.retry && safe_ensure?(state.failure_mode, result)
+    retry? = fn ->
+      if is_struct(state.failure_mode, Retry) do
+        state.failure_mode.max_times > bee.retry
       else
         false
       end
@@ -174,40 +174,25 @@ defmodule Honeycomb.Scheduler do
         # Recheck the queue
         Process.send_after(self(), :check_queue, 0)
 
-      need_retry?.() ->
-        retry_bee(bee, state)
+      retry?.() ->
+        # Retry the bee
+        state.failure_mode |> safe_ensure(result) |> retry_bee(bee, result, state)
 
       true ->
-        if bee.timer do
-          # Cancel the timer
-          Timer.cancel(bee.timer)
-        end
+        complete_bee(bee, :raised, result, state)
+    end
+  end
 
-        # Update the bees
-        bees =
-          if bee.stateless do
-            Map.delete(state.bees, name)
-          else
-            # Update the bee
-            bee = %Bee{
-              bee
-              | task_pid: nil,
-                timer: nil,
-                work_end_at: DateTime.utc_now(),
-                status: status,
-                result: result
-            }
+  @impl true
+  def handle_cast({:homing, :done, name, result}, state) do
+    if bee = Map.get(state.bees, name) do
+      complete_bee(bee, :done, result, state)
+    else
+      # Bee not found
+      Logger.warning("Bee not found: #{name}")
 
-            Map.put(state.bees, name, bee)
-          end
-
-        # Update the running counter
-        running_counter = state.running_counter - 1
-
-        # Recheck the queue
-        Process.send_after(self(), :check_queue, 0)
-
-        {:noreply, %{state | bees: bees, running_counter: running_counter}}
+      # Recheck the queue
+      Process.send_after(self(), :check_queue, 0)
     end
   end
 
@@ -265,7 +250,7 @@ defmodule Honeycomb.Scheduler do
     end
   end
 
-  defp retry_bee(bee, state) do
+  defp retry_bee(:continue, bee, _result, state) do
     Logger.debug("[honeycomb:#{state.id}] Retry bee: #{bee.name}")
 
     if bee.timer do
@@ -290,6 +275,91 @@ defmodule Honeycomb.Scheduler do
     bees = Map.put(state.bees, bee.name, bee)
 
     {:noreply, %{state | bees: bees}}
+  end
+
+  # Rejoin the queue according to the delay time. The logic is similar to `:brew` and `complete_bee`.
+  defp retry_bee({:continue, delay}, bee, _result, state) do
+    Logger.debug(
+      "[honeycomb:#{state.id}] Delayed retry bee: #{inspect(name: bee.name, delay: delay)}"
+    )
+
+    if bee.timer do
+      # Cancel the timer
+      Timer.cancel(bee.timer)
+    end
+
+    server = self()
+
+    # Transfer the bee to the queue
+    {:ok, timer} =
+      :timer.apply_after(delay, Process, :send, [server, {:transfer_bee, bee.name}, []])
+
+    # Update the bee
+    bee = %Bee{
+      bee
+      | retry: bee.retry + 1,
+        timer: timer,
+        expect_run_at: DateTime.add(DateTime.utc_now(), delay, :millisecond),
+        status: :pending,
+        task_pid: nil,
+        work_end_at: nil,
+        result: nil
+    }
+
+    # Merge the bee to the bees
+    bees = Map.put(state.bees, bee.name, bee)
+    # Add to queue
+    queue =
+      if delay == 0 do
+        Queue.in(bee, state.queue)
+      else
+        state.queue
+      end
+
+    # Update the running counter
+    running_counter = state.running_counter - 1
+
+    # Check the queue immediately
+    Process.send_after(self(), :check_queue, 0)
+
+    {:noreply, %{state | bees: bees, queue: queue, running_counter: running_counter}}
+  end
+
+  defp retry_bee(:halt, bee, result, state) do
+    complete_bee(bee, :raised, result, state)
+  end
+
+  defp complete_bee(bee, status, result, state) do
+    if bee.timer do
+      # Cancel the timer
+      Timer.cancel(bee.timer)
+    end
+
+    # Update the bees
+    bees =
+      if bee.stateless do
+        Map.delete(state.bees, bee.name)
+      else
+        # Update the bee
+        bee = %Bee{
+          bee
+          | task_pid: nil,
+            timer: nil,
+            work_end_at: DateTime.utc_now(),
+            status: status,
+            result: result
+        }
+
+        Map.put(state.bees, bee.name, bee)
+      end
+
+    # Update the running counter
+    running_counter = state.running_counter - 1
+
+    # Recheck the queue
+    Process.send_after(self(), :check_queue, 0)
+
+    {:noreply, %{state | bees: bees, running_counter: running_counter}}
   end
 
   defp cancel_bee(name, state) do
