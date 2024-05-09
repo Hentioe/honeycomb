@@ -101,19 +101,29 @@ defmodule HoneycombTest do
   test "cancel_bee/2" do
     {:ok, _} = Honeycomb.start_link(name: :cancel_bee_test_1)
 
+    # 测试未启动延迟任务
     Honeycomb.brew_honey_after(:cancel_bee_test_1, "t1", fn -> :ok end, 20)
-
     timer = Honeycomb.bee(:cancel_bee_test_1, "t1").timer
     assert timer != nil
     {:ok, bee} = Honeycomb.cancel_bee(:cancel_bee_test_1, "t1")
     assert bee.status == :canceled
     assert Honeycomb.bee(:cancel_bee_test_1, "t1").status == :canceled
     assert Honeycomb.bee(:cancel_bee_test_1, "t1").timer == nil
-
+    # 测试已启动任务
     Honeycomb.brew_honey(:cancel_bee_test_1, "t2", fn -> :ok end)
     :timer.sleep(5)
     assert Honeycomb.bee(:cancel_bee_test_1, "t2").status == :done
     {:error, bad_status} = Honeycomb.cancel_bee(:cancel_bee_test_1, "t2")
     assert bad_status == :done
+
+    # 测试队列中的等待任务
+    {:ok, _} = Honeycomb.start_link(name: :cancel_bee_test_2, concurrency: 1)
+    Honeycomb.brew_honey(:cancel_bee_test_2, "t1", fn -> :timer.sleep(20) end)
+    Honeycomb.brew_honey(:cancel_bee_test_2, "t2", fn -> :ok end)
+    :timer.sleep(5)
+    # t2 是一个队列中等待的任务，取消它
+    {:ok, _} = Honeycomb.cancel_bee(:cancel_bee_test_2, "t2")
+    # 检查队列长度（应该是 0）
+    assert Honeycomb.count_pending_bees(:cancel_bee_test_2) == 0
   end
 end

@@ -133,14 +133,22 @@ defmodule Honeycomb.Scheduler do
           Timer.cancel(bee.timer)
         end
 
+        # Remove the bee from the queue
+        queue = Queue.delete(bee, state.queue)
+
         # Update the bee status
         bee = %Bee{bee | timer: nil, status: :canceled}
 
         # Update the bees
         bees = Map.put(state.bees, name, bee)
 
-        {:reply, {:ok, bee}, %{state | bees: bees}}
+        {:reply, {:ok, bee}, %{state | bees: bees, queue: queue}}
     end
+  end
+
+  @impl true
+  def handle_call(:count_pending_bees, _from, state) do
+    {:reply, Queue.len(state.queue), state}
   end
 
   @impl true

@@ -113,4 +113,8 @@ defmodule Honeycomb do
   def cancel_bee(server, name) do
     GenServer.call(namegen(server, Scheduler), {:cancel_bee, name})
   end
+
+  def count_pending_bees(server) do
+    GenServer.call(namegen(server, Scheduler), :count_pending_bees)
+  end
 end
