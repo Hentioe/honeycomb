@@ -21,7 +21,7 @@ defmodule Honeycomb.Runner do
     DynamicSupervisor.init(strategy: :one_for_one)
   end
 
-  def run(queen, name, fun) do
+  def run(queen, name, fun) when is_function(fun) do
     task = fn ->
       try do
         r = fun.()

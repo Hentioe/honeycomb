@@ -4,6 +4,7 @@ defmodule Honeycomb.Scheduler do
   use GenServer
 
   alias Honeycomb.{Bee, Runner}
+  alias Honeycomb.FailureMode.Retry
   alias :queue, as: Queue
   alias :timer, as: Timer
 
@@ -18,6 +19,7 @@ defmodule Honeycomb.Scheduler do
     @enforce_keys [:id]
     defstruct [
       :id,
+      :failure_mode,
       bees: %{},
       queue: Queue.new(),
       running_counter: 0,
@@ -26,6 +28,7 @@ defmodule Honeycomb.Scheduler do
 
     @type t :: %__MODULE__{
             id: atom,
+            failure_mode: Honeycomb.FailureMode.t(),
             bees: map(),
             queue: Queue.queue(),
             running_counter: non_neg_integer(),
@@ -37,10 +40,11 @@ defmodule Honeycomb.Scheduler do
     id = Keyword.get(opts, :id) || raise "Missing `:id` option"
     name = namegen(id)
     concurrency = Keyword.get(opts, :concurrency) || :infinity
+    failure_mode = Keyword.get(opts, :failure_mode)
 
     GenServer.start_link(
       __MODULE__,
-      %State{id: id, concurrency: concurrency},
+      %State{id: id, concurrency: concurrency, failure_mode: failure_mode},
       name: name
     )
   end
@@ -85,6 +89,7 @@ defmodule Honeycomb.Scheduler do
       bee = %Bee{
         name: name,
         run: run,
+        retry: 0,
         create_at: now_dt,
         timer: timer,
         expect_run_at: DateTime.add(now_dt, delay, :millisecond),
@@ -151,43 +156,58 @@ defmodule Honeycomb.Scheduler do
 
   @impl true
   def handle_cast({:homing, status, name, result}, state) when status in [:done, :raised] do
-    if bee = Map.get(state.bees, name) do
-      if bee.timer do
-        # Cancel the timer
-        Timer.cancel(bee.timer)
+    bee = Map.get(state.bees, name)
+
+    need_retry? = fn ->
+      if status == :raised && is_struct(state.failure_mode, Retry) do
+        state.failure_mode.max_times > bee.retry && state.failure_mode.ensure?.(result)
+      else
+        false
       end
+    end
 
-      # Update the bees
-      bees =
-        if bee.stateless do
-          Map.delete(state.bees, name)
-        else
-          # Update the bee
-          bee = %Bee{
-            bee
-            | task_pid: nil,
-              timer: nil,
-              work_end_at: DateTime.utc_now(),
-              status: status,
-              result: result
-          }
+    cond do
+      is_nil(bee) ->
+        # Bee not found
+        Logger.warning("Bee not found: #{name}")
 
-          Map.put(state.bees, name, bee)
+        # Recheck the queue
+        Process.send_after(self(), :check_queue, 0)
+
+      need_retry?.() ->
+        retry_bee(bee, state)
+
+      true ->
+        if bee.timer do
+          # Cancel the timer
+          Timer.cancel(bee.timer)
         end
 
-      # Update the running counter
-      running_counter = state.running_counter - 1
+        # Update the bees
+        bees =
+          if bee.stateless do
+            Map.delete(state.bees, name)
+          else
+            # Update the bee
+            bee = %Bee{
+              bee
+              | task_pid: nil,
+                timer: nil,
+                work_end_at: DateTime.utc_now(),
+                status: status,
+                result: result
+            }
 
-      # Recheck the queue
-      Process.send_after(self(), :check_queue, 0)
+            Map.put(state.bees, name, bee)
+          end
 
-      {:noreply, %{state | bees: bees, running_counter: running_counter}}
-    else
-      # Bee not found
-      Logger.warning("Bee not found: #{name}")
+        # Update the running counter
+        running_counter = state.running_counter - 1
 
-      # Recheck the queue
-      Process.send_after(self(), :check_queue, 0)
+        # Recheck the queue
+        Process.send_after(self(), :check_queue, 0)
+
+        {:noreply, %{state | bees: bees, running_counter: running_counter}}
     end
   end
 
@@ -210,7 +230,9 @@ defmodule Honeycomb.Scheduler do
     if state.running_counter < concurrency do
       run_queue_out(Queue.out(state.queue), state)
     else
-      Logger.debug("Running counter is at the concurrency limit: #{concurrency}")
+      Logger.debug(
+        "[honeycomb:#{state.id}] Running counter is at the concurrency limit: #{concurrency}"
+      )
 
       {:noreply, state}
     end
@@ -222,7 +244,7 @@ defmodule Honeycomb.Scheduler do
     cond do
       is_nil(bee) ->
         # Bee not found
-        Logger.warning("Bee not found: #{name}")
+        Logger.warning("[honeycomb:#{state.id}] Bee not found: #{name}")
 
         {:noreply, state}
 
@@ -237,10 +259,37 @@ defmodule Honeycomb.Scheduler do
 
       true ->
         # Non-pending bee cannot be transferred to the queue
-        Logger.warning("Bee is not pending: #{name}")
+        Logger.warning("[honeycomb:#{state.id}] Bee is not pending: #{name}")
 
         {:noreply, state}
     end
+  end
+
+  defp retry_bee(bee, state) do
+    Logger.debug("[honeycomb:#{state.id}] Retry bee: #{bee.name}")
+
+    if bee.timer do
+      # Cancel the timer
+      Timer.cancel(bee.timer)
+    end
+
+    # Run the bee
+    {:ok, pid} = Runner.run(state.id, bee.name, bee.run)
+
+    # Update the bee
+    bee = %Bee{
+      bee
+      | retry: bee.retry + 1,
+        task_pid: pid,
+        timer: nil,
+        work_end_at: nil,
+        status: :running,
+        result: nil
+    }
+
+    bees = Map.put(state.bees, bee.name, bee)
+
+    {:noreply, %{state | bees: bees}}
   end
 
   defp cancel_bee(name, state) do

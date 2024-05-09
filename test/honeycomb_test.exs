@@ -4,6 +4,8 @@ defmodule HoneycombTest do
 
   import Honeycomb.Helper
 
+  alias Honeycomb.Factory
+
   test "concurrency test" do
     def_queen(__MODULE__.ConcurrencyTest1, id: :concurrency_test_1, concurrency: 2)
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.ConcurrencyTest1)
@@ -170,5 +172,45 @@ defmodule HoneycombTest do
     {:ok, _} = Honeycomb.stop_bee(:stop_bee_test_2, "t2")
     # 检查队列长度（应该是 0）
     assert Honeycomb.count_pending_bees(:stop_bee_test_2) == 0
+  end
+
+  test "retry" do
+    def_queen(__MODULE__.RetryTest1,
+      id: :retry_test_1,
+      failure_mode: %Honeycomb.FailureMode.Retry{max_times: 2}
+    )
+
+    def_queen(__MODULE__.RetryTest2,
+      id: :retry_test_2,
+      failure_mode: %Honeycomb.FailureMode.Retry{
+        max_times: 5,
+        ensure?: &Factory.retry_test2_ensure?/1
+      }
+    )
+
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.RetryTest1)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.RetryTest2)
+    {:ok, _} = Factory.RetryTimes.start_link([])
+
+    # 运行一个会报错的任务
+    Honeycomb.brew_honey(:retry_test_1, "t1", fn -> raise "I am an error" end)
+    :timer.sleep(5)
+    assert Honeycomb.bee(:retry_test_1, "t1").status == :raised
+    assert Honeycomb.bee(:retry_test_1, "t1").retry == 2
+    assert Honeycomb.bee(:retry_test_1, "t1").result == %RuntimeError{message: "I am an error"}
+
+    # 运行一个会报错的延迟任务
+    Honeycomb.brew_honey_after(:retry_test_1, "t2", fn -> raise "I am an error" end, 20)
+    :timer.sleep(25)
+    assert Honeycomb.bee(:retry_test_1, "t2").status == :raised
+    assert Honeycomb.bee(:retry_test_1, "t2").retry == 2
+    assert Honeycomb.bee(:retry_test_1, "t2").result == %RuntimeError{message: "I am an error"}
+
+    # 用自定义 `ensure?/1` 函数的 Honeycomb 运行一个会报错的任务
+    Honeycomb.brew_honey(:retry_test_2, "t1", fn -> raise "I am an error" end)
+    :timer.sleep(5)
+    assert Honeycomb.bee(:retry_test_2, "t1").status == :raised
+    assert Honeycomb.bee(:retry_test_2, "t1").retry == 3
+    assert Honeycomb.bee(:retry_test_2, "t1").result == %RuntimeError{message: "I am an error"}
   end
 end

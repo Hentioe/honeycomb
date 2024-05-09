@@ -1,6 +1,8 @@
 defmodule Honeycomb.Queen do
   @moduledoc false
 
+  alias Honeycomb.FailureMode.Retry
+
   defmodule Opts do
     @moduledoc false
 
@@ -9,13 +11,13 @@ defmodule Honeycomb.Queen do
     @type t :: %__MODULE__{
             id: atom() | module(),
             concurrency: :infinity | non_neg_integer(),
-            failure_mode: :retry
+            failure_mode: {:retry, Retry.t()}
           }
   end
 
   defmacro __using__(opts \\ []) do
     concurrency = Keyword.get(opts, :concurrency) || :infinity
-    failure_mode = Keyword.get(opts, :failure_mode) || :retry
+    failure_mode = Keyword.get(opts, :failure_mode)
     id = Keyword.get(opts, :id) || __CALLER__.module
 
     quote do

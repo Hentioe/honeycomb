@@ -13,9 +13,7 @@ defmodule Honeycomb do
   def start_link(opts \\ []) do
     queen = Keyword.get(opts, :queen) || raise ArgumentError, "queen is required"
     queen_opts = queen.opts()
-
-    id = queen_opts.id
-    name = namegen(id)
+    name = namegen(queen_opts.id)
 
     Supervisor.start_link(__MODULE__, queen_opts, name: name)
   end
@@ -27,9 +25,10 @@ defmodule Honeycomb do
     }
   end
 
-  def init(%{id: id, concurrency: concurrency}) do
+  def init(%{id: id} = opts) do
     children = [
-      {__MODULE__.Scheduler, id: id, concurrency: concurrency},
+      {__MODULE__.Scheduler,
+       id: id, concurrency: opts.concurrency, failure_mode: opts.failure_mode},
       {__MODULE__.Runner, id: id}
     ]
 
