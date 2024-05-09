@@ -8,13 +8,14 @@ defmodule Honeycomb.Bee do
     :task_pid,
     :create_at,
     :expect_run_at,
+    :timer,
     :work_start_at,
     :work_end_at,
     :stateless,
     :result
   ]
 
-  @type status :: :pending | :running | :done | :raised | :terminated
+  @type status :: :pending | :running | :done | :raised | :terminated | :canceled
   @type t :: %__MODULE__{
           name: atom | String.t(),
           status: status,
@@ -22,6 +23,7 @@ defmodule Honeycomb.Bee do
           task_pid: pid(),
           create_at: DateTime.t(),
           expect_run_at: DateTime.t(),
+          timer: :timer.tref(),
           work_start_at: DateTime.t(),
           work_end_at: DateTime.t(),
           stateless: boolean(),

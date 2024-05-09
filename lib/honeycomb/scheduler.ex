@@ -5,6 +5,7 @@ defmodule Honeycomb.Scheduler do
 
   alias Honeycomb.{Bee, Runner}
   alias :queue, as: Queue
+  alias :timer, as: Timer
 
   require Logger
   require Honeycomb.Helper
@@ -69,10 +70,23 @@ defmodule Honeycomb.Scheduler do
       # Create a bee
       now_dt = DateTime.utc_now()
 
+      # Create timer (if delay > 0)
+      timer =
+        if delay > 0 do
+          server = self()
+
+          # Transfer the bee to the queue
+          {:ok, timer} =
+            :timer.apply_after(delay, Process, :send, [server, {:transfer_bee, name}, []])
+
+          timer
+        end
+
       bee = %Bee{
         name: name,
         run: run,
         create_at: now_dt,
+        timer: timer,
         expect_run_at: DateTime.add(now_dt, delay, :millisecond),
         status: :pending,
         stateless: stateless
@@ -88,11 +102,6 @@ defmodule Honeycomb.Scheduler do
           state.queue
         end
 
-      if delay > 0 do
-        # Transfer the bee to the delay_bees
-        Process.send_after(self(), {:transfer_bee, name}, delay)
-      end
-
       # Check the queue immediately
       Process.send_after(self(), :check_queue, 0)
 
@@ -107,6 +116,34 @@ defmodule Honeycomb.Scheduler do
     {:reply, state.bees, state}
   end
 
+  @impl true
+  def handle_call({:cancel_bee, name}, _from, state) do
+    bee = Map.get(state.bees, name)
+
+    cond do
+      is_nil(bee) ->
+        {:reply, {:error, :not_found}, state}
+
+      bee.status != :pending ->
+        {:reply, {:error, bee.status}, state}
+
+      true ->
+        # Cancel the timer
+        if bee.timer do
+          Timer.cancel(bee.timer)
+        end
+
+        # Update the bee status
+        bee = %Bee{bee | timer: nil, status: :canceled}
+
+        # Update the bees
+        bees = Map.put(state.bees, name, bee)
+
+        {:reply, {:ok, bee}, %{state | bees: bees}}
+    end
+  end
+
+  @impl true
   def handle_cast({:terminate_bee, name}, state) do
     bee = Map.get(state.bees, name)
 
@@ -139,6 +176,11 @@ defmodule Honeycomb.Scheduler do
   @impl true
   def handle_cast({:homing, status, name, result}, state) when status in [:done, :raised] do
     if bee = Map.get(state.bees, name) do
+      if bee.timer do
+        # Cancel the timer
+        Timer.cancel(bee.timer)
+      end
+
       # Update the bees
       bees =
         if bee.stateless do
@@ -148,6 +190,7 @@ defmodule Honeycomb.Scheduler do
           bee = %Bee{
             bee
             | task_pid: nil,
+              timer: nil,
               work_end_at: DateTime.utc_now(),
               status: status,
               result: result
@@ -198,18 +241,29 @@ defmodule Honeycomb.Scheduler do
   end
 
   def handle_info({:transfer_bee, name}, state) do
-    # Transfer the bee from delay_bees to queue
-    if bee = Map.get(state.bees, name) do
-      queue = Queue.in(bee, state.queue)
+    bee = Map.get(state.bees, name)
 
-      # Recheck the queue
-      Process.send_after(self(), :check_queue, 0)
+    cond do
+      is_nil(bee) ->
+        # Bee not found
+        Logger.warning("Bee not found: #{name}")
 
-      {:noreply, %{state | queue: queue}}
-    else
-      Logger.warning("Not found bee to transfer: #{name}")
+        {:noreply, state}
 
-      {:noreply, state}
+      bee.status == :pending ->
+        # Transfer the bee from delay_bees to queue
+        queue = Queue.in(bee, state.queue)
+
+        # Recheck the queue
+        Process.send_after(self(), :check_queue, 0)
+
+        {:noreply, %{state | queue: queue}}
+
+      true ->
+        # Non-pending bee cannot be transferred to the queue
+        Logger.warning("Bee is not pending: #{name}")
+
+        {:noreply, state}
     end
   end
 
