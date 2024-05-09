@@ -103,15 +103,19 @@ defmodule Honeycomb do
     GenServer.cast(namegen(server, Scheduler), {:remove_bee, name})
   end
 
-  @spec terminate_bee(atom, String.t()) :: :ok
+  @spec terminate_bee(atom, String.t()) :: {:ok, Bee.t()} | {:error, any}
   def terminate_bee(server, name) do
-    # todo: 终止后立即返回被终止的 bee，并移除 bee。如果尚未运行则返回错误。
-    GenServer.cast(namegen(server, Scheduler), {:terminate_bee, name})
+    GenServer.call(namegen(server, Scheduler), {:terminate_bee, name})
   end
 
   @spec cancel_bee(atom(), String.t()) :: {:ok, Bee.t()} | {:error, any}
   def cancel_bee(server, name) do
     GenServer.call(namegen(server, Scheduler), {:cancel_bee, name})
+  end
+
+  @spec stop_bee(atom, String.t()) :: {:ok | :ignore, Bee.t()} | {:error, any}
+  def stop_bee(server, name) do
+    GenServer.call(namegen(server, Scheduler), {:stop_bee, name})
   end
 
   def count_pending_bees(server) do

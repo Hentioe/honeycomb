@@ -118,67 +118,35 @@ defmodule Honeycomb.Scheduler do
 
   @impl true
   def handle_call({:cancel_bee, name}, _from, state) do
+    cancel_bee(name, state)
+  end
+
+  @impl true
+  def handle_call({:terminate_bee, name}, _from, state) do
+    terminate_bee(name, state)
+  end
+
+  def handle_call({:stop_bee, name}, _from, state) do
     bee = Map.get(state.bees, name)
 
     cond do
       is_nil(bee) ->
         {:reply, {:error, :not_found}, state}
 
-      bee.status != :pending ->
-        {:reply, {:error, bee.status}, state}
+      bee.status == :pending ->
+        cancel_bee(name, state)
+
+      bee.status == :running ->
+        terminate_bee(name, state)
 
       true ->
-        # Cancel the timer
-        if bee.timer do
-          Timer.cancel(bee.timer)
-        end
-
-        # Remove the bee from the queue
-        queue = Queue.delete(bee, state.queue)
-
-        # Update the bee status
-        bee = %Bee{bee | timer: nil, status: :canceled}
-
-        # Update the bees
-        bees = Map.put(state.bees, name, bee)
-
-        {:reply, {:ok, bee}, %{state | bees: bees, queue: queue}}
+        {:reply, {:ignore, bee}, state}
     end
   end
 
   @impl true
   def handle_call(:count_pending_bees, _from, state) do
     {:reply, Queue.len(state.queue), state}
-  end
-
-  @impl true
-  def handle_cast({:terminate_bee, name}, state) do
-    bee = Map.get(state.bees, name)
-
-    cond do
-      is_nil(bee) ->
-        Logger.warning("Bee not found: #{name}")
-
-        {:noreply, state}
-
-      is_nil(bee.task_pid) ->
-        Logger.warning("Bee task not found: #{name}")
-
-        {:noreply, state}
-
-      true ->
-        # Terminate the runner child
-        DynamicSupervisor.terminate_child(namegen(state.key, Runner), bee.task_pid)
-        # Update the bee
-        bee = %Bee{bee | status: :terminated, task_pid: nil}
-        bees = Map.put(state.bees, name, bee)
-        # Update the running counter
-        running_counter = state.running_counter - 1
-        # Recheck the queue
-        Process.send_after(self(), :check_queue, 0)
-
-        {:noreply, %{state | bees: bees, running_counter: running_counter}}
-    end
   end
 
   @impl true
@@ -272,6 +240,60 @@ defmodule Honeycomb.Scheduler do
         Logger.warning("Bee is not pending: #{name}")
 
         {:noreply, state}
+    end
+  end
+
+  defp cancel_bee(name, state) do
+    bee = Map.get(state.bees, name)
+
+    cond do
+      is_nil(bee) ->
+        {:reply, {:error, :not_found}, state}
+
+      bee.status != :pending ->
+        {:reply, {:error, bee.status}, state}
+
+      true ->
+        # Cancel the timer
+        if bee.timer do
+          Timer.cancel(bee.timer)
+        end
+
+        # Remove the bee from the queue
+        queue = Queue.delete(bee, state.queue)
+
+        # Update the bee status
+        bee = %Bee{bee | timer: nil, status: :canceled}
+
+        # Update the bees
+        bees = Map.put(state.bees, name, bee)
+
+        {:reply, {:ok, bee}, %{state | bees: bees, queue: queue}}
+    end
+  end
+
+  defp terminate_bee(name, state) do
+    bee = Map.get(state.bees, name)
+
+    cond do
+      is_nil(bee) ->
+        {:reply, {:error, :not_found}, state}
+
+      is_nil(bee.task_pid) ->
+        {:reply, {:error, :task_not_found}, state}
+
+      true ->
+        # Terminate the runner child
+        DynamicSupervisor.terminate_child(namegen(state.key, Runner), bee.task_pid)
+        # Update the bee
+        bee = %Bee{bee | status: :terminated, task_pid: nil}
+        bees = Map.put(state.bees, name, bee)
+        # Update the running counter
+        running_counter = state.running_counter - 1
+        # Recheck the queue
+        Process.send_after(self(), :check_queue, 0)
+
+        {:reply, {:ok, bee}, %{state | bees: bees, running_counter: running_counter}}
     end
   end
 

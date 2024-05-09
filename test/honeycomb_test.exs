@@ -80,7 +80,9 @@ defmodule HoneycombTest do
 
     Honeycomb.brew_honey(:terminate_bee_test_1, "t1", fn -> :timer.sleep(20) end)
     # 测试未启动时执行终止，无效果
-    assert Honeycomb.terminate_bee(:terminate_bee_test_1, "t1") == :ok
+    {:error, reason} = Honeycomb.terminate_bee(:terminate_bee_test_1, "t1")
+
+    assert reason == :task_not_found
     assert Honeycomb.bee(:terminate_bee_test_1, "t1").status != :terminated
     # 测试启动后终止，成功
     :timer.sleep(5)
@@ -91,7 +93,7 @@ defmodule HoneycombTest do
     pid = Honeycomb.bee(:terminate_bee_test_1, "t1").task_pid
     assert is_pid(pid)
     # 终止后 task_pid 为空，状态为 terminated
-    assert Honeycomb.terminate_bee(:terminate_bee_test_1, "t1") == :ok
+    {:ok, _bee} = Honeycomb.terminate_bee(:terminate_bee_test_1, "t1")
     assert Honeycomb.bee(:terminate_bee_test_1, "t1").status == :terminated
     assert Honeycomb.bee(:terminate_bee_test_1, "t1").task_pid == nil
     # 按照此前的 pid 验证 task 已经终止
@@ -101,7 +103,7 @@ defmodule HoneycombTest do
   test "cancel_bee/2" do
     {:ok, _} = Honeycomb.start_link(name: :cancel_bee_test_1)
 
-    # 测试未启动延迟任务
+    # 测试未启动的延迟任务
     Honeycomb.brew_honey_after(:cancel_bee_test_1, "t1", fn -> :ok end, 20)
     timer = Honeycomb.bee(:cancel_bee_test_1, "t1").timer
     assert timer != nil
@@ -125,5 +127,39 @@ defmodule HoneycombTest do
     {:ok, _} = Honeycomb.cancel_bee(:cancel_bee_test_2, "t2")
     # 检查队列长度（应该是 0）
     assert Honeycomb.count_pending_bees(:cancel_bee_test_2) == 0
+  end
+
+  test "stop_bee/2" do
+    {:ok, _} = Honeycomb.start_link(name: :stop_bee_test_1)
+
+    # 测试未启动的延迟任务
+    Honeycomb.brew_honey_after(:stop_bee_test_1, "t1", fn -> :ok end, 20)
+    timer = Honeycomb.bee(:stop_bee_test_1, "t1").timer
+    assert timer != nil
+    {:ok, bee} = Honeycomb.stop_bee(:stop_bee_test_1, "t1")
+    assert bee.status == :canceled
+    assert Honeycomb.bee(:stop_bee_test_1, "t1").status == :canceled
+    assert Honeycomb.bee(:stop_bee_test_1, "t1").timer == nil
+    # 测试已启动任务
+    Honeycomb.brew_honey(:stop_bee_test_1, "t2", fn -> :ok end)
+    :timer.sleep(5)
+    assert Honeycomb.bee(:stop_bee_test_1, "t2").status == :done
+    {:ignore, bee} = Honeycomb.stop_bee(:stop_bee_test_1, "t2")
+    assert bee.status == :done
+    # 测试运行中的任务
+    Honeycomb.brew_honey(:stop_bee_test_1, "t3", fn -> :timer.sleep(20) end)
+    :timer.sleep(5)
+    assert Honeycomb.bee(:stop_bee_test_1, "t3").status == :running
+    {:ok, bee} = Honeycomb.stop_bee(:stop_bee_test_1, "t3")
+    assert bee.status == :terminated
+    # 测试队列中的等待任务
+    {:ok, _} = Honeycomb.start_link(name: :stop_bee_test_2, concurrency: 1)
+    Honeycomb.brew_honey(:stop_bee_test_2, "t1", fn -> :timer.sleep(20) end)
+    Honeycomb.brew_honey(:stop_bee_test_2, "t2", fn -> :ok end)
+    :timer.sleep(5)
+    # t2 是一个队列中等待的任务，停止它
+    {:ok, _} = Honeycomb.stop_bee(:stop_bee_test_2, "t2")
+    # 检查队列长度（应该是 0）
+    assert Honeycomb.count_pending_bees(:stop_bee_test_2) == 0
   end
 end
