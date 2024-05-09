@@ -41,18 +41,18 @@ defmodule Honeycomb do
 
   @type brew_honey_opts :: [stateless: boolean(), delay: non_neg_integer()]
 
-  @spec brew_honey(atom, atom | String.t(), (-> any), brew_honey_opts()) ::
+  @spec brew_honey(atom, atom | String.t(), Bee.run(), brew_honey_opts()) ::
           {:ok, Bee.t()} | {:error, any}
-  def brew_honey(queen, name, fun, opts \\ []) do
-    GenServer.call(namegen(queen, Scheduler), {:run, name, fun, opts})
+  def brew_honey(queen, name, run, opts \\ []) do
+    GenServer.call(namegen(queen, Scheduler), {:run, name, run, opts})
   end
 
-  @spec brew_honey_after(atom, atom | String.t(), (-> any), non_neg_integer(), brew_honey_opts()) ::
+  @spec brew_honey_after(atom, atom | String.t(), Bee.run(), non_neg_integer(), brew_honey_opts()) ::
           {:ok, Bee.t()} | {:error, any}
-  def brew_honey_after(queen, name, fun, millisecond, opts \\ []) do
+  def brew_honey_after(queen, name, run, millisecond, opts \\ []) do
     opts = Keyword.merge(opts, delay: millisecond)
 
-    GenServer.call(namegen(queen, Scheduler), {:run, name, fun, opts})
+    GenServer.call(namegen(queen, Scheduler), {:run, name, run, opts})
   end
 
   @spec bee(atom, atom | String.t()) :: Bee.t() | nil

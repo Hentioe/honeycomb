@@ -63,7 +63,7 @@ defmodule Honeycomb.Scheduler do
   end
 
   @impl true
-  def handle_call({:run, name, run, opts}, _from, state) when is_function(run) do
+  def handle_call({:run, name, run, opts}, _from, state) do
     bee = Map.get(state.bees, name)
 
     # Only bee is nil, or the bee status is not `:running` or `:pending`, can create a bee.

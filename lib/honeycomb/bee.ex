@@ -17,10 +17,11 @@ defmodule Honeycomb.Bee do
   ]
 
   @type status :: :pending | :running | :done | :raised | :terminated | :canceled
+  @type run :: (-> any()) | {module(), atom(), [any()]}
   @type t :: %__MODULE__{
           name: atom | String.t(),
           status: status,
-          run: (-> any()),
+          run: run(),
           task_pid: pid(),
           retry: non_neg_integer(),
           create_at: DateTime.t(),

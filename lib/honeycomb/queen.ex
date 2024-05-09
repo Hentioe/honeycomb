@@ -11,7 +11,7 @@ defmodule Honeycomb.Queen do
     @type t :: %__MODULE__{
             id: atom() | module(),
             concurrency: :infinity | non_neg_integer(),
-            failure_mode: {:retry, Retry.t()}
+            failure_mode: Retry.t()
           }
   end
 
@@ -21,9 +21,10 @@ defmodule Honeycomb.Queen do
     id = Keyword.get(opts, :id) || __CALLER__.module
 
     quote do
-      @spec opts :: Opts.t()
+      # @spec opts :: unquote(__MODULE__).Opts.t()
+      # Add the @spec will cause Dialyzer error, the reason is unknown
       def opts do
-        %Opts{
+        %unquote(__MODULE__).Opts{
           id: unquote(id),
           concurrency: unquote(concurrency),
           failure_mode: unquote(failure_mode)
