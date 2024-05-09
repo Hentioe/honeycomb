@@ -213,4 +213,22 @@ defmodule HoneycombTest do
     assert Honeycomb.bee(:retry_test_2, "t1").retry == 3
     assert Honeycomb.bee(:retry_test_2, "t1").result == %RuntimeError{message: "I am an error"}
   end
+
+  test "runtime error ensure?/1" do
+    def_queen(__MODULE__.ErrorEnsureTest1,
+      id: :error_ensure_test_1,
+      failure_mode: %Honeycomb.FailureMode.Retry{
+        max_times: 2,
+        ensure?: fn _ -> raise "I am an error eunsure!" end
+      }
+    )
+
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.ErrorEnsureTest1)
+
+    Honeycomb.brew_honey(:error_ensure_test_1, "t1", fn -> raise "I am an error" end)
+    :timer.sleep(5)
+    assert Honeycomb.bee(:error_ensure_test_1, "t1").status == :raised
+    # 回调 `ensure?/1` 报错，不会重试
+    assert Honeycomb.bee(:error_ensure_test_1, "t1").retry == 0
+  end
 end

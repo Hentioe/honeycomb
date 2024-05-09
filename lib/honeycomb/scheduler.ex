@@ -160,7 +160,7 @@ defmodule Honeycomb.Scheduler do
 
     need_retry? = fn ->
       if status == :raised && is_struct(state.failure_mode, Retry) do
-        state.failure_mode.max_times > bee.retry && state.failure_mode.ensure?.(result)
+        state.failure_mode.max_times > bee.retry && safe_ensure?(state.failure_mode, result)
       else
         false
       end
