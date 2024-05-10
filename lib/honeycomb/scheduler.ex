@@ -178,14 +178,14 @@ defmodule Honeycomb.Scheduler do
     cond do
       is_nil(bee) ->
         # Bee not found
-        Logger.warning("Bee not found: #{name}")
+        Logger.warning("bee not found: #{name}", honeycomb: state.id)
 
         # Recheck the queue
         Process.send_after(self(), :check_queue, 0)
 
       retry?.() ->
         # Retry the bee
-        state.failure_mode |> safe_ensure(result) |> retry_bee(bee, result, state)
+        state.failure_mode |> safe_ensure(result, state.id) |> retry_bee(bee, result, state)
 
       true ->
         complete_bee(bee, :raised, result, state)
@@ -198,7 +198,7 @@ defmodule Honeycomb.Scheduler do
       complete_bee(bee, :done, result, state)
     else
       # Bee not found
-      Logger.warning("Bee not found: #{name}")
+      Logger.warning("bee not found: #{name}", honeycomb: state.id)
 
       # Recheck the queue
       Process.send_after(self(), :check_queue, 0)
@@ -224,9 +224,7 @@ defmodule Honeycomb.Scheduler do
     if state.running_counter < concurrency do
       run_queue_out(Queue.out(state.queue), state)
     else
-      Logger.debug(
-        "[honeycomb:#{state.id}] Running counter is at the concurrency limit: #{concurrency}"
-      )
+      Logger.debug("concurrency limit reached: #{concurrency}", honeycomb: state.id)
 
       {:noreply, state}
     end
@@ -238,7 +236,7 @@ defmodule Honeycomb.Scheduler do
     cond do
       is_nil(bee) ->
         # Bee not found
-        Logger.warning("[honeycomb:#{state.id}] Bee not found: #{name}")
+        Logger.warning("bee not found: #{name}", honeycomb: state.id)
 
         {:noreply, state}
 
@@ -253,14 +251,14 @@ defmodule Honeycomb.Scheduler do
 
       true ->
         # Non-pending bee cannot be transferred to the queue
-        Logger.warning("[honeycomb:#{state.id}] Bee is not pending: #{name}")
+        Logger.warning("bee is not pending: #{name}", honeycomb: state.id)
 
         {:noreply, state}
     end
   end
 
   defp retry_bee(:continue, bee, _result, state) do
-    Logger.debug("[honeycomb:#{state.id}] Retry bee: #{bee.name}")
+    Logger.debug("retry bee: #{bee.name}", honeycomb: state.id)
 
     if bee.timer do
       # Cancel the timer
@@ -289,7 +287,8 @@ defmodule Honeycomb.Scheduler do
   # Rejoin the queue according to the delay time. The logic is similar to `:brew` and `complete_bee`.
   defp retry_bee({:continue, delay}, bee, _result, state) do
     Logger.debug(
-      "[honeycomb:#{state.id}] Delayed retry bee: #{inspect(name: bee.name, delay: delay)}"
+      "delayed retry bee: #{inspect(name: bee.name, delay: delay)}",
+      honeycomb: state.id
     )
 
     if bee.timer do

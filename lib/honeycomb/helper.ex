@@ -22,12 +22,15 @@ defmodule Honeycomb.Helper do
   """
   @spec safe_ensure(Honeycomb.FailureMode.t(), any()) ::
           Honeycomb.FailureMode.Retry.ensure_action()
-  def safe_ensure(failure_mode, error) do
+  def safe_ensure(failure_mode, error, id \\ nil) do
     try do
       failure_mode.ensure.(error)
     rescue
       e ->
-        Logger.error("Error in `ensure/1` callback: #{inspect(e)}")
+        Logger.error(
+          "an error occurred while calling `ensure/1`, ignoring retries: #{inspect(exception: e)}",
+          honeycomb: id
+        )
 
         :halt
     end
