@@ -159,7 +159,7 @@ defmodule Honeycomb.Scheduler do
   end
 
   @impl true
-  def handle_call(:count_pending_bees, _from, state) do
+  def handle_call(:queue_length, _from, state) do
     {:reply, Queue.len(state.queue), state}
   end
 

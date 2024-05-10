@@ -23,25 +23,25 @@ defmodule HoneycombTest do
     assert Honeycomb.bee(:concurrency_test_1, "t3").status in [:running, :done]
   end
 
-  test "take_honey/2" do
-    def_queen(__MODULE__.TakeHoneyTest1, id: :take_honey_test_1)
+  test "harvest_honey/2" do
+    def_queen(__MODULE__.TakeHoneyTest1, id: :harvest_honey_test_1)
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.TakeHoneyTest1)
 
-    Honeycomb.gather_honey(:take_honey_test_1, "t1", fn -> :ok end)
-    Honeycomb.gather_honey(:take_honey_test_1, "t2", fn -> :timer.sleep(20) end)
-    Honeycomb.gather_honey(:take_honey_test_1, "t3", fn -> raise "I am an error" end)
+    Honeycomb.gather_honey(:harvest_honey_test_1, "t1", fn -> :ok end)
+    Honeycomb.gather_honey(:harvest_honey_test_1, "t2", fn -> :timer.sleep(20) end)
+    Honeycomb.gather_honey(:harvest_honey_test_1, "t3", fn -> raise "I am an error" end)
     :timer.sleep(5)
-    assert Honeycomb.take_honey(:take_honey_test_1, "t1") == {:done, :ok}
-    assert Honeycomb.take_honey(:take_honey_test_1, "t2") == {:error, :undone}
+    assert Honeycomb.harvest_honey(:harvest_honey_test_1, "t1") == {:done, :ok}
+    assert Honeycomb.harvest_honey(:harvest_honey_test_1, "t2") == {:error, :undone}
     :timer.sleep(20)
-    assert Honeycomb.take_honey(:take_honey_test_1, "t2") == {:done, :ok}
+    assert Honeycomb.harvest_honey(:harvest_honey_test_1, "t2") == {:done, :ok}
 
-    assert Honeycomb.take_honey(:take_honey_test_1, "t3") ==
+    assert Honeycomb.harvest_honey(:harvest_honey_test_1, "t3") ==
              {:raised, %RuntimeError{message: "I am an error"}}
 
-    assert Honeycomb.take_honey(:take_honey_test_1, "t1") == {:error, :absent}
-    assert Honeycomb.take_honey(:take_honey_test_1, "t2") == {:error, :absent}
-    assert Honeycomb.take_honey(:take_honey_test_1, "t3") == {:error, :absent}
+    assert Honeycomb.harvest_honey(:harvest_honey_test_1, "t1") == {:error, :not_found}
+    assert Honeycomb.harvest_honey(:harvest_honey_test_1, "t2") == {:error, :not_found}
+    assert Honeycomb.harvest_honey(:harvest_honey_test_1, "t3") == {:error, :not_found}
   end
 
   test "stateless" do
@@ -135,7 +135,7 @@ defmodule HoneycombTest do
     # t2 是一个队列中等待的任务，取消它
     {:ok, _} = Honeycomb.cancel_bee(:cancel_bee_test_2, "t2")
     # 检查队列长度（应该是 0）
-    assert Honeycomb.count_pending_bees(:cancel_bee_test_2) == 0
+    assert Honeycomb.scheduler_queue_length(:cancel_bee_test_2) == 0
   end
 
   test "stop_bee/2" do
@@ -171,7 +171,7 @@ defmodule HoneycombTest do
     # t2 是一个队列中等待的任务，停止它
     {:ok, _} = Honeycomb.stop_bee(:stop_bee_test_2, "t2")
     # 检查队列长度（应该是 0）
-    assert Honeycomb.count_pending_bees(:stop_bee_test_2) == 0
+    assert Honeycomb.scheduler_queue_length(:stop_bee_test_2) == 0
   end
 
   test "retry" do

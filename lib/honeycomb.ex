@@ -110,15 +110,16 @@ defmodule Honeycomb do
     |> Enum.map(&elem(&1, 1))
   end
 
-  @spec take_honey(atom, name()) ::
-          {:done, any} | {:raised, any} | {:error, :absent} | {:error, :undone}
-  def take_honey(queen, name) do
+  @spec harvest_honey(atom, name()) ::
+          {:done, any} | {:raised, Exception.t()} | {:error, :not_found} | {:error, :undone}
+  def harvest_honey(queen, name) do
+    # todo: 直接获取 bee 而不是 bees
     bees = GenServer.call(namegen(queen, Scheduler), :bees)
 
     case bees[name] do
       nil ->
         # Error: Not found
-        {:error, :absent}
+        {:error, :not_found}
 
       %{status: :done, result: result} ->
         :ok = remove_bee(queen, name)
@@ -132,13 +133,13 @@ defmodule Honeycomb do
 
       # todo: 缺乏对 `terminated` 和 `canceled` 的处理。
       _ ->
-        # Error: Not done
+        # Error: Undone
         {:error, :undone}
     end
   end
 
   @spec remove_bee(queen(), name()) :: :ok
-  def remove_bee(queen, name) do
+  defp remove_bee(queen, name) do
     # todo: 返回错误，当 bee 正在运行时拒绝移除。
     GenServer.cast(namegen(queen, Scheduler), {:remove_bee, name})
   end
@@ -158,7 +159,7 @@ defmodule Honeycomb do
     GenServer.call(namegen(queen, Scheduler), {:stop_bee, name})
   end
 
-  def count_pending_bees(queen) do
-    GenServer.call(namegen(queen, Scheduler), :count_pending_bees)
+  def scheduler_queue_length(queen) do
+    GenServer.call(namegen(queen, Scheduler), :queue_length)
   end
 end
