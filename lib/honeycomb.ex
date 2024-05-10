@@ -18,9 +18,9 @@ defmodule Honeycomb do
     Supervisor.start_link(__MODULE__, queen_opts, name: name)
   end
 
-  def child_spec(opts) do
+  def child_spec([queen: queen] = opts) do
     %{
-      id: namegen(opts[:name]),
+      id: namegen(queen.opts().id),
       start: {__MODULE__, :start_link, [opts]}
     }
   end
