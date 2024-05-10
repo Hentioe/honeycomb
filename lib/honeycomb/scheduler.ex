@@ -87,6 +87,13 @@ defmodule Honeycomb.Scheduler do
           timer
         end
 
+      name =
+        if name == :anon do
+          anon_name()
+        else
+          name
+        end
+
       bee = %Bee{
         name: name,
         caller: caller,

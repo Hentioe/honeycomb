@@ -12,6 +12,7 @@ defmodule Honeycomb do
 
   @type queen :: atom() | module()
   @type name :: String.t()
+  @type name_strategy :: name() | :anon
   @type brew_honey_sync_opts :: [timeout: timeout()]
   @type sync_error :: {:exception, Exception.t()} | {:error, {:brew, :timeout}}
 
@@ -46,13 +47,19 @@ defmodule Honeycomb do
 
   @type brew_honey_opts :: [stateless: boolean(), delay: non_neg_integer()]
 
-  @spec brew_honey(atom, atom | String.t(), Bee.run(), brew_honey_opts()) ::
+  @spec brew_honey(queen(), name_strategy(), Bee.run(), brew_honey_opts()) ::
           {:ok, Bee.t()} | {:error, any}
   def brew_honey(queen, name, run, opts \\ []) do
     GenServer.call(namegen(queen, Scheduler), {:brew, name, run, opts})
   end
 
-  @spec brew_honey_after(atom, atom | String.t(), Bee.run(), non_neg_integer(), brew_honey_opts()) ::
+  @spec brew_honey_after(
+          queen(),
+          name_strategy(),
+          Bee.run(),
+          non_neg_integer(),
+          brew_honey_opts()
+        ) ::
           {:ok, Bee.t()} | {:error, any}
   def brew_honey_after(queen, name, run, millisecond, opts \\ []) do
     opts = Keyword.merge(opts, delay: millisecond)
@@ -60,7 +67,7 @@ defmodule Honeycomb do
     GenServer.call(namegen(queen, Scheduler), {:brew, name, run, opts})
   end
 
-  @spec brew_honey_sync(queen(), name(), Bee.run(), brew_honey_sync_opts()) ::
+  @spec brew_honey_sync(queen(), name_strategy(), Bee.run(), brew_honey_sync_opts()) ::
           any() | sync_error()
   def brew_honey_sync(queen, name, run, opts \\ []) do
     opts =
@@ -88,7 +95,7 @@ defmodule Honeycomb do
     end
   end
 
-  @spec bee(atom, atom | String.t()) :: Bee.t() | nil
+  @spec bee(atom, name()) :: Bee.t() | nil
   def bee(queen, name) do
     bees = GenServer.call(namegen(queen, Scheduler), :bees)
 
@@ -104,23 +111,23 @@ defmodule Honeycomb do
     |> Enum.map(&elem(&1, 1))
   end
 
-  @spec take_honey(atom, String.t()) ::
+  @spec take_honey(atom, name()) ::
           {:done, any} | {:raised, any} | {:error, :absent} | {:error, :undone}
-  def take_honey(queen, bee_name) do
+  def take_honey(queen, name) do
     bees = GenServer.call(namegen(queen, Scheduler), :bees)
 
-    case bees[bee_name] do
+    case bees[name] do
       nil ->
         # Error: Not found
         {:error, :absent}
 
       %{status: :done, result: result} ->
-        :ok = remove_bee(queen, bee_name)
+        :ok = remove_bee(queen, name)
 
         {:done, result}
 
       %{status: :raised, result: result} ->
-        :ok = remove_bee(queen, bee_name)
+        :ok = remove_bee(queen, name)
 
         {:raised, result}
 
@@ -131,23 +138,23 @@ defmodule Honeycomb do
     end
   end
 
-  @spec remove_bee(atom, String.t()) :: :ok
+  @spec remove_bee(queen(), name()) :: :ok
   def remove_bee(queen, name) do
     # todo: 返回错误，当 bee 正在运行时拒绝移除。
     GenServer.cast(namegen(queen, Scheduler), {:remove_bee, name})
   end
 
-  @spec terminate_bee(atom, String.t()) :: {:ok, Bee.t()} | {:error, any}
+  @spec terminate_bee(queen(), name()) :: {:ok, Bee.t()} | {:error, any}
   def terminate_bee(queen, name) do
     GenServer.call(namegen(queen, Scheduler), {:terminate_bee, name})
   end
 
-  @spec cancel_bee(atom(), String.t()) :: {:ok, Bee.t()} | {:error, any}
+  @spec cancel_bee(queen(), name()) :: {:ok, Bee.t()} | {:error, any}
   def cancel_bee(queen, name) do
     GenServer.call(namegen(queen, Scheduler), {:cancel_bee, name})
   end
 
-  @spec stop_bee(atom, String.t()) :: {:ok | :ignore, Bee.t()} | {:error, any}
+  @spec stop_bee(queen(), name()) :: {:ok | :ignore, Bee.t()} | {:error, any}
   def stop_bee(queen, name) do
     GenServer.call(namegen(queen, Scheduler), {:stop_bee, name})
   end

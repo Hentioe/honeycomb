@@ -298,4 +298,12 @@ defmodule HoneycombTest do
              raise "I am an error too"
            end) == {:exception, %RuntimeError{message: "I am an error too"}}
   end
+
+  test "anon_name" do
+    def_queen(__MODULE__.AnonTest1, id: :anon_test_1)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.AnonTest1)
+
+    {:ok, bee} = Honeycomb.brew_honey(:anon_test_1, :anon, fn -> :ok end)
+    assert bee.name != nil
+  end
 end

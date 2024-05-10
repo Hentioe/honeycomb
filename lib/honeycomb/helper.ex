@@ -32,4 +32,13 @@ defmodule Honeycomb.Helper do
         :halt
     end
   end
+
+  @doc """
+  An anonymous name generator function that generates a unique name. The current
+  generated name has no fixed specification.
+  """
+  @spec anon_name() :: String.t()
+  def anon_name do
+    to_string(:erlang.unique_integer())
+  end
 end
