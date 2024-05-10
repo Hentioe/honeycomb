@@ -10,6 +10,11 @@ defmodule Honeycomb do
 
   import Honeycomb.Helper
 
+  @type queen :: atom() | module()
+  @type name :: String.t()
+  @type brew_honey_sync_opts :: [timeout: timeout()]
+  @type sync_error :: {:exception, Exception.t()} | {:error, {:brew, :timeout}}
+
   def start_link(opts \\ []) do
     queen = Keyword.get(opts, :queen) || raise ArgumentError, "queen is required"
     queen_opts = queen.opts()
@@ -44,7 +49,7 @@ defmodule Honeycomb do
   @spec brew_honey(atom, atom | String.t(), Bee.run(), brew_honey_opts()) ::
           {:ok, Bee.t()} | {:error, any}
   def brew_honey(queen, name, run, opts \\ []) do
-    GenServer.call(namegen(queen, Scheduler), {:run, name, run, opts})
+    GenServer.call(namegen(queen, Scheduler), {:brew, name, run, opts})
   end
 
   @spec brew_honey_after(atom, atom | String.t(), Bee.run(), non_neg_integer(), brew_honey_opts()) ::
@@ -52,7 +57,35 @@ defmodule Honeycomb do
   def brew_honey_after(queen, name, run, millisecond, opts \\ []) do
     opts = Keyword.merge(opts, delay: millisecond)
 
-    GenServer.call(namegen(queen, Scheduler), {:run, name, run, opts})
+    GenServer.call(namegen(queen, Scheduler), {:brew, name, run, opts})
+  end
+
+  @spec brew_honey_sync(queen(), name(), Bee.run(), brew_honey_sync_opts()) ::
+          any() | sync_error()
+  def brew_honey_sync(queen, name, run, opts \\ []) do
+    opts =
+      opts
+      |> Keyword.put_new(:caller, self())
+      |> Keyword.put_new(:stateless, true)
+
+    {timeout, opts} = Keyword.pop(opts, :timeout, :infinity)
+
+    case GenServer.call(namegen(queen, Scheduler), {:brew, name, run, opts}) do
+      {:ok, _} ->
+        receive do
+          result ->
+            result
+        after
+          timeout ->
+            # Note: Timeout must remove bee, otherwise it will cause receiving confusion.
+            {:ok, _} = stop_bee(queen, name)
+
+            {:error, {:brew, :timeout}}
+        end
+
+      other ->
+        other
+    end
   end
 
   @spec bee(atom, atom | String.t()) :: Bee.t() | nil

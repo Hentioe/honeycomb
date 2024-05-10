@@ -273,4 +273,29 @@ defmodule HoneycombTest do
     # 回调 `ensure/1` 报错，不会重试
     assert Honeycomb.bee(:error_ensure_test_1, "t1").retry == 0
   end
+
+  test "brew_honey_sync/4" do
+    def_queen(__MODULE__.BrewHoneySyncTest1, id: :brew_honey_sync_test_1)
+    {:ok, _} = Honeycomb.start_link(queen: __MODULE__.BrewHoneySyncTest1)
+
+    assert Honeycomb.brew_honey_sync(:brew_honey_sync_test_1, "t1", fn -> :ok end) == :ok
+    # # 同步调用是 stateless 的
+    assert Honeycomb.bee(:brew_honey_sync_test_1, "t1") == nil
+
+    # # 测试超时
+    assert Honeycomb.brew_honey_sync(:brew_honey_sync_test_1, "t2", fn -> :timer.sleep(20) end,
+             timeout: 10
+           ) == {:error, {:brew, :timeout}}
+
+    assert Honeycomb.bee(:brew_honey_sync_test_1, "t2") == nil
+
+    assert Honeycomb.brew_honey_sync(:brew_honey_sync_test_1, "t3", fn ->
+             raise "I am an error"
+           end) == {:exception, %RuntimeError{message: "I am an error"}}
+
+    # 测试同一个名称任务的返回值
+    assert Honeycomb.brew_honey_sync(:brew_honey_sync_test_1, "t3", fn ->
+             raise "I am an error too"
+           end) == {:exception, %RuntimeError{message: "I am an error too"}}
+  end
 end

@@ -4,6 +4,7 @@ defmodule Honeycomb.Bee do
   defstruct [
     :name,
     :status,
+    :caller,
     :run,
     :task_pid,
     :retry,
@@ -21,6 +22,7 @@ defmodule Honeycomb.Bee do
   @type t :: %__MODULE__{
           name: atom | String.t(),
           status: status,
+          caller: pid(),
           run: run(),
           task_pid: pid(),
           retry: non_neg_integer(),
