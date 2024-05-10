@@ -10,9 +10,9 @@ defmodule HoneycombTest do
     def_queen(__MODULE__.ConcurrencyTest1, id: :concurrency_test_1, concurrency: 2)
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.ConcurrencyTest1)
 
-    Honeycomb.brew_honey(:concurrency_test_1, "t1", fn -> :timer.sleep(20) end)
-    Honeycomb.brew_honey(:concurrency_test_1, "t2", fn -> :timer.sleep(20) end)
-    Honeycomb.brew_honey(:concurrency_test_1, "t3", fn -> :t3 end)
+    Honeycomb.gather_honey(:concurrency_test_1, "t1", fn -> :timer.sleep(20) end)
+    Honeycomb.gather_honey(:concurrency_test_1, "t2", fn -> :timer.sleep(20) end)
+    Honeycomb.gather_honey(:concurrency_test_1, "t3", fn -> :t3 end)
     # 暂停 10 毫秒，确保队列任务启动
     :timer.sleep(10)
     assert Honeycomb.bee(:concurrency_test_1, "t1").status == :running
@@ -27,9 +27,9 @@ defmodule HoneycombTest do
     def_queen(__MODULE__.TakeHoneyTest1, id: :take_honey_test_1)
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.TakeHoneyTest1)
 
-    Honeycomb.brew_honey(:take_honey_test_1, "t1", fn -> :ok end)
-    Honeycomb.brew_honey(:take_honey_test_1, "t2", fn -> :timer.sleep(20) end)
-    Honeycomb.brew_honey(:take_honey_test_1, "t3", fn -> raise "I am an error" end)
+    Honeycomb.gather_honey(:take_honey_test_1, "t1", fn -> :ok end)
+    Honeycomb.gather_honey(:take_honey_test_1, "t2", fn -> :timer.sleep(20) end)
+    Honeycomb.gather_honey(:take_honey_test_1, "t3", fn -> raise "I am an error" end)
     :timer.sleep(5)
     assert Honeycomb.take_honey(:take_honey_test_1, "t1") == {:done, :ok}
     assert Honeycomb.take_honey(:take_honey_test_1, "t2") == {:error, :undone}
@@ -48,8 +48,8 @@ defmodule HoneycombTest do
     def_queen(__MODULE__.StatelessTest1, id: :stateless_test_1)
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.StatelessTest1)
 
-    Honeycomb.brew_honey(:stateless_test_1, "t1", fn -> :timer.sleep(20) end, stateless: true)
-    Honeycomb.brew_honey(:stateless_test_1, "t2", fn -> :ok end, stateless: true)
+    Honeycomb.gather_honey(:stateless_test_1, "t1", fn -> :timer.sleep(20) end, stateless: true)
+    Honeycomb.gather_honey(:stateless_test_1, "t2", fn -> :ok end, stateless: true)
     :timer.sleep(5)
 
     assert Honeycomb.bee(:stateless_test_1, "t1").status == :running
@@ -63,7 +63,7 @@ defmodule HoneycombTest do
     def_queen(__MODULE__.DelayTest1, id: :delay_test_1)
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.DelayTest1)
 
-    Honeycomb.brew_honey_after(:delay_test_1, "t1", fn -> :ok end, 20)
+    Honeycomb.gather_honey_after(:delay_test_1, "t1", fn -> :ok end, 20)
 
     :timer.sleep(5)
     assert Honeycomb.bee(:delay_test_1, "t1").expect_run_at > DateTime.utc_now()
@@ -85,7 +85,7 @@ defmodule HoneycombTest do
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.TerminateTest1)
     runner_server = namegen(:terminate_bee_test_1, Honeycomb.Runner)
 
-    Honeycomb.brew_honey(:terminate_bee_test_1, "t1", fn -> :timer.sleep(20) end)
+    Honeycomb.gather_honey(:terminate_bee_test_1, "t1", fn -> :timer.sleep(20) end)
     # 测试未启动时执行终止，无效果
     {:error, reason} = Honeycomb.terminate_bee(:terminate_bee_test_1, "t1")
 
@@ -114,7 +114,7 @@ defmodule HoneycombTest do
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.CancelBeeTest2)
 
     # 测试未启动的延迟任务
-    Honeycomb.brew_honey_after(:cancel_bee_test_1, "t1", fn -> :ok end, 20)
+    Honeycomb.gather_honey_after(:cancel_bee_test_1, "t1", fn -> :ok end, 20)
     timer = Honeycomb.bee(:cancel_bee_test_1, "t1").timer
     assert timer != nil
     {:ok, bee} = Honeycomb.cancel_bee(:cancel_bee_test_1, "t1")
@@ -122,15 +122,15 @@ defmodule HoneycombTest do
     assert Honeycomb.bee(:cancel_bee_test_1, "t1").status == :canceled
     assert Honeycomb.bee(:cancel_bee_test_1, "t1").timer == nil
     # 测试已启动任务
-    Honeycomb.brew_honey(:cancel_bee_test_1, "t2", fn -> :ok end)
+    Honeycomb.gather_honey(:cancel_bee_test_1, "t2", fn -> :ok end)
     :timer.sleep(5)
     assert Honeycomb.bee(:cancel_bee_test_1, "t2").status == :done
     {:error, bad_status} = Honeycomb.cancel_bee(:cancel_bee_test_1, "t2")
     assert bad_status == :done
 
     # 测试队列中的等待任务
-    Honeycomb.brew_honey(:cancel_bee_test_2, "t1", fn -> :timer.sleep(20) end)
-    Honeycomb.brew_honey(:cancel_bee_test_2, "t2", fn -> :ok end)
+    Honeycomb.gather_honey(:cancel_bee_test_2, "t1", fn -> :timer.sleep(20) end)
+    Honeycomb.gather_honey(:cancel_bee_test_2, "t2", fn -> :ok end)
     :timer.sleep(5)
     # t2 是一个队列中等待的任务，取消它
     {:ok, _} = Honeycomb.cancel_bee(:cancel_bee_test_2, "t2")
@@ -145,7 +145,7 @@ defmodule HoneycombTest do
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.StopBeeTest2)
 
     # 测试未启动的延迟任务
-    Honeycomb.brew_honey_after(:stop_bee_test_1, "t1", fn -> :ok end, 20)
+    Honeycomb.gather_honey_after(:stop_bee_test_1, "t1", fn -> :ok end, 20)
     timer = Honeycomb.bee(:stop_bee_test_1, "t1").timer
     assert timer != nil
     {:ok, bee} = Honeycomb.stop_bee(:stop_bee_test_1, "t1")
@@ -153,20 +153,20 @@ defmodule HoneycombTest do
     assert Honeycomb.bee(:stop_bee_test_1, "t1").status == :canceled
     assert Honeycomb.bee(:stop_bee_test_1, "t1").timer == nil
     # 测试已启动任务
-    Honeycomb.brew_honey(:stop_bee_test_1, "t2", fn -> :ok end)
+    Honeycomb.gather_honey(:stop_bee_test_1, "t2", fn -> :ok end)
     :timer.sleep(5)
     assert Honeycomb.bee(:stop_bee_test_1, "t2").status == :done
     {:ignore, bee} = Honeycomb.stop_bee(:stop_bee_test_1, "t2")
     assert bee.status == :done
     # 测试运行中的任务
-    Honeycomb.brew_honey(:stop_bee_test_1, "t3", fn -> :timer.sleep(20) end)
+    Honeycomb.gather_honey(:stop_bee_test_1, "t3", fn -> :timer.sleep(20) end)
     :timer.sleep(5)
     assert Honeycomb.bee(:stop_bee_test_1, "t3").status == :running
     {:ok, bee} = Honeycomb.stop_bee(:stop_bee_test_1, "t3")
     assert bee.status == :terminated
     # 测试队列中的等待任务
-    Honeycomb.brew_honey(:stop_bee_test_2, "t1", fn -> :timer.sleep(20) end)
-    Honeycomb.brew_honey(:stop_bee_test_2, "t2", fn -> :ok end)
+    Honeycomb.gather_honey(:stop_bee_test_2, "t1", fn -> :timer.sleep(20) end)
+    Honeycomb.gather_honey(:stop_bee_test_2, "t2", fn -> :ok end)
     :timer.sleep(5)
     # t2 是一个队列中等待的任务，停止它
     {:ok, _} = Honeycomb.stop_bee(:stop_bee_test_2, "t2")
@@ -193,21 +193,21 @@ defmodule HoneycombTest do
     {:ok, _} = Factory.RetryTimes.start_link([])
 
     # 运行一个会报错的任务
-    Honeycomb.brew_honey(:retry_test_1, "t1", fn -> raise "I am an error" end)
+    Honeycomb.gather_honey(:retry_test_1, "t1", fn -> raise "I am an error" end)
     :timer.sleep(5)
     assert Honeycomb.bee(:retry_test_1, "t1").status == :raised
     assert Honeycomb.bee(:retry_test_1, "t1").retry == 2
     assert Honeycomb.bee(:retry_test_1, "t1").result == %RuntimeError{message: "I am an error"}
 
     # 运行一个会报错的延迟任务
-    Honeycomb.brew_honey_after(:retry_test_1, "t2", fn -> raise "I am an error" end, 20)
+    Honeycomb.gather_honey_after(:retry_test_1, "t2", fn -> raise "I am an error" end, 20)
     :timer.sleep(25)
     assert Honeycomb.bee(:retry_test_1, "t2").status == :raised
     assert Honeycomb.bee(:retry_test_1, "t2").retry == 2
     assert Honeycomb.bee(:retry_test_1, "t2").result == %RuntimeError{message: "I am an error"}
 
     # 用自定义 `ensure/1` 函数的 Honeycomb 运行一个会报错的任务
-    Honeycomb.brew_honey(:retry_test_2, "t1", fn -> raise "I am an error" end)
+    Honeycomb.gather_honey(:retry_test_2, "t1", fn -> raise "I am an error" end)
     :timer.sleep(5)
     assert Honeycomb.bee(:retry_test_2, "t1").status == :raised
     assert Honeycomb.bee(:retry_test_2, "t1").retry == 3
@@ -226,7 +226,7 @@ defmodule HoneycombTest do
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.RetryEnqueueTest1)
     {:ok, _} = Factory.RetryTimes.start_link([])
     # 运行一个会报错的任务
-    Honeycomb.brew_honey(:retry_enqueue_test_1, "t1", fn -> raise "I am an error" end)
+    Honeycomb.gather_honey(:retry_enqueue_test_1, "t1", fn -> raise "I am an error" end)
     :timer.sleep(5)
 
     # 此刻仍然是第一次重试后的状态，因为重试第一次后，第二次的延迟时间是 10ms
@@ -267,34 +267,37 @@ defmodule HoneycombTest do
 
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.ErrorEnsureTest1)
 
-    Honeycomb.brew_honey(:error_ensure_test_1, "t1", fn -> raise "I am an error" end)
+    Honeycomb.gather_honey(:error_ensure_test_1, "t1", fn -> raise "I am an error" end)
     :timer.sleep(5)
     assert Honeycomb.bee(:error_ensure_test_1, "t1").status == :raised
     # 回调 `ensure/1` 报错，不会重试
     assert Honeycomb.bee(:error_ensure_test_1, "t1").retry == 0
   end
 
-  test "brew_honey_sync/4" do
-    def_queen(__MODULE__.BrewHoneySyncTest1, id: :brew_honey_sync_test_1)
+  test "gather_honey_sync/4" do
+    def_queen(__MODULE__.BrewHoneySyncTest1, id: :gather_honey_sync_test_1)
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.BrewHoneySyncTest1)
 
-    assert Honeycomb.brew_honey_sync(:brew_honey_sync_test_1, "t1", fn -> :ok end) == :ok
+    assert Honeycomb.gather_honey_sync(:gather_honey_sync_test_1, "t1", fn -> :ok end) == :ok
     # # 同步调用是 stateless 的
-    assert Honeycomb.bee(:brew_honey_sync_test_1, "t1") == nil
+    assert Honeycomb.bee(:gather_honey_sync_test_1, "t1") == nil
 
     # # 测试超时
-    assert Honeycomb.brew_honey_sync(:brew_honey_sync_test_1, "t2", fn -> :timer.sleep(20) end,
+    assert Honeycomb.gather_honey_sync(
+             :gather_honey_sync_test_1,
+             "t2",
+             fn -> :timer.sleep(20) end,
              timeout: 10
            ) == {:error, {:brew, :timeout}}
 
-    assert Honeycomb.bee(:brew_honey_sync_test_1, "t2") == nil
+    assert Honeycomb.bee(:gather_honey_sync_test_1, "t2") == nil
 
-    assert Honeycomb.brew_honey_sync(:brew_honey_sync_test_1, "t3", fn ->
+    assert Honeycomb.gather_honey_sync(:gather_honey_sync_test_1, "t3", fn ->
              raise "I am an error"
            end) == {:exception, %RuntimeError{message: "I am an error"}}
 
     # 测试同一个名称任务的返回值
-    assert Honeycomb.brew_honey_sync(:brew_honey_sync_test_1, "t3", fn ->
+    assert Honeycomb.gather_honey_sync(:gather_honey_sync_test_1, "t3", fn ->
              raise "I am an error too"
            end) == {:exception, %RuntimeError{message: "I am an error too"}}
   end
@@ -303,7 +306,7 @@ defmodule HoneycombTest do
     def_queen(__MODULE__.AnonTest1, id: :anon_test_1)
     {:ok, _} = Honeycomb.start_link(queen: __MODULE__.AnonTest1)
 
-    {:ok, bee} = Honeycomb.brew_honey(:anon_test_1, :anon, fn -> :ok end)
+    {:ok, bee} = Honeycomb.gather_honey(:anon_test_1, :anon, fn -> :ok end)
     assert bee.name != nil
   end
 end

@@ -13,7 +13,8 @@ defmodule Honeycomb do
   @type queen :: atom() | module()
   @type name :: String.t()
   @type name_strategy :: name() | :anon
-  @type brew_honey_sync_opts :: [timeout: timeout()]
+  @type gather_opts :: [stateless: boolean(), delay: non_neg_integer()]
+  @type gather_sync_opts :: [timeout: timeout()]
   @type sync_error :: {:exception, Exception.t()} | {:error, {:brew, :timeout}}
 
   def start_link(opts \\ []) do
@@ -45,31 +46,29 @@ defmodule Honeycomb do
     Supervisor.init(children, opts)
   end
 
-  @type brew_honey_opts :: [stateless: boolean(), delay: non_neg_integer()]
-
-  @spec brew_honey(queen(), name_strategy(), Bee.run(), brew_honey_opts()) ::
+  @spec gather_honey(queen(), name_strategy(), Bee.run(), gather_opts()) ::
           {:ok, Bee.t()} | {:error, any}
-  def brew_honey(queen, name, run, opts \\ []) do
+  def gather_honey(queen, name, run, opts \\ []) do
     GenServer.call(namegen(queen, Scheduler), {:brew, name, run, opts})
   end
 
-  @spec brew_honey_after(
+  @spec gather_honey_after(
           queen(),
           name_strategy(),
           Bee.run(),
           non_neg_integer(),
-          brew_honey_opts()
+          gather_opts()
         ) ::
           {:ok, Bee.t()} | {:error, any}
-  def brew_honey_after(queen, name, run, millisecond, opts \\ []) do
+  def gather_honey_after(queen, name, run, millisecond, opts \\ []) do
     opts = Keyword.merge(opts, delay: millisecond)
 
     GenServer.call(namegen(queen, Scheduler), {:brew, name, run, opts})
   end
 
-  @spec brew_honey_sync(queen(), name_strategy(), Bee.run(), brew_honey_sync_opts()) ::
+  @spec gather_honey_sync(queen(), name_strategy(), Bee.run(), gather_sync_opts()) ::
           any() | sync_error()
-  def brew_honey_sync(queen, name, run, opts \\ []) do
+  def gather_honey_sync(queen, name, run, opts \\ []) do
     opts =
       opts
       |> Keyword.put_new(:caller, self())
