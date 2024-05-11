@@ -105,6 +105,14 @@ defmodule HoneycombTest do
     assert Honeycomb.bee(:terminate_bee_test_1, "t1").task_pid == nil
     # 按照此前的 pid 验证 task 已经终止
     assert DynamicSupervisor.terminate_child(runner_server, pid) == {:error, :not_found}
+    # 测试无状态任务的返回值
+    Honeycomb.gather_honey(:terminate_bee_test_1, "t2", fn -> :timer.sleep(20) end,
+      stateless: true
+    )
+
+    :timer.sleep(5)
+    {:ok, bee} = Honeycomb.terminate_bee(:terminate_bee_test_1, "t2")
+    assert bee.status == :terminated
   end
 
   test "cancel_bee/2" do
@@ -127,6 +135,10 @@ defmodule HoneycombTest do
     assert Honeycomb.bee(:cancel_bee_test_1, "t2").status == :done
     {:error, bad_status} = Honeycomb.cancel_bee(:cancel_bee_test_1, "t2")
     assert bad_status == :done
+    # 测试无状态任务的返回值
+    Honeycomb.gather_honey_after(:cancel_bee_test_1, "t3", fn -> :ok end, 20, stateless: true)
+    {:ok, bee} = Honeycomb.cancel_bee(:cancel_bee_test_1, "t3")
+    assert bee.status == :canceled
 
     # 测试队列中的等待任务
     Honeycomb.gather_honey(:cancel_bee_test_2, "t1", fn -> :timer.sleep(20) end)

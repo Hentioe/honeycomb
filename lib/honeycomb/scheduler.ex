@@ -411,21 +411,19 @@ defmodule Honeycomb.Scheduler do
         # Remove the bee from the queue
         queue = Queue.delete(bee, state.queue)
 
+        # Update the bee
+        bee = %Bee{bee | timer: nil, status: :canceled}
         # Update the bee status
         bees =
           if bee.stateless do
             # Remove the bee
             Map.delete(state.bees, name)
           else
-            # Update the bee
-            bee = %Bee{bee | timer: nil, status: :canceled}
-            # Update the bees
+            # Merge to the bees
             Map.put(state.bees, name, bee)
           end
 
-        current_bee = Map.get(bees, name)
-
-        {:reply, {:ok, current_bee}, %{state | bees: bees, queue: queue}}
+        {:reply, {:ok, bee}, %{state | bees: bees, queue: queue}}
     end
   end
 
@@ -443,14 +441,16 @@ defmodule Honeycomb.Scheduler do
         # Terminate the runner child
         DynamicSupervisor.terminate_child(namegen(state.id, Runner), bee.task_pid)
 
+        # Update the bee
+        bee = %Bee{bee | status: :terminated, task_pid: nil}
+
+        # Update the bees
         bees =
           if bee.stateless do
             # Remove the bee
             Map.delete(state.bees, name)
           else
-            # Update the bee
-            bee = %Bee{bee | status: :terminated, task_pid: nil}
-            # Update the bees
+            # Merge to the bees
             Map.put(state.bees, name, bee)
           end
 
@@ -459,9 +459,7 @@ defmodule Honeycomb.Scheduler do
         # Recheck the queue
         Process.send_after(self(), :check_queue, 0)
 
-        current_bee = Map.get(bees, name)
-
-        {:reply, {:ok, current_bee}, %{state | bees: bees, running_counter: running_counter}}
+        {:reply, {:ok, bee}, %{state | bees: bees, running_counter: running_counter}}
     end
   end
 

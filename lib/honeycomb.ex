@@ -98,7 +98,7 @@ defmodule Honeycomb do
     end
   end
 
-  @spec stop_bee(queen(), name()) :: {:error, :gather_timeout} | any()
+  @spec handle_timeout(queen(), name()) :: {:error, :gather_timeout} | any()
   defp handle_timeout(queen, name) do
     # Note: Timeout must remove bee, otherwise it will cause receiving confusion.
     case stop_bee(queen, name) do
