@@ -18,7 +18,7 @@ defmodule Honeycomb do
   @type bad_gather_status :: :running | :pending
   @type gather_opts :: [stateless: boolean(), delay: non_neg_integer()]
   @type gather_sync_opts :: [timeout: timeout()]
-  @type bad_gather_sync :: {:exception, Exception.t()} | {:error, {:gather, :timeout}}
+  @type bad_gather_sync :: {:exception, Exception.t()} | {:error, :gather_timeout}
   @type bad_cancel_status :: :running | :done | :raised | :terminated | :canceled
 
   def start_link(opts \\ []) do
@@ -84,20 +84,30 @@ defmodule Honeycomb do
     {timeout, opts} = Keyword.pop(opts, :timeout, :infinity)
 
     case GenServer.call(namegen(queen, Scheduler), {:gather, name, run, opts}) do
-      {:ok, _} ->
+      {:ok, bee} ->
         receive do
           result ->
             result
         after
           timeout ->
-            # Note: Timeout must remove bee, otherwise it will cause receiving confusion.
-            {:ok, _} = stop_bee(queen, name)
-
-            {:error, {:gather, :timeout}}
+            handle_timeout(queen, bee.name)
         end
 
       other ->
         other
+    end
+  end
+
+  @spec stop_bee(queen(), name()) :: {:error, :gather_timeout} | any()
+  defp handle_timeout(queen, name) do
+    # Note: Timeout must remove bee, otherwise it will cause receiving confusion.
+    case stop_bee(queen, name) do
+      {_, %{status: status} = bee} when status in [:done, :raised] ->
+        # The gap where the timeout occurred, the task stopped when it was completed, is treated as a non-timeout return.
+        bee.result
+
+      _ ->
+        {:error, :gather_timeout}
     end
   end
 
@@ -161,7 +171,7 @@ defmodule Honeycomb do
     GenServer.call(namegen(queen, Scheduler), {:cancel_bee, name})
   end
 
-  @spec stop_bee(queen(), name()) :: {:ok | :ignore, Bee.t()}
+  @spec stop_bee(queen(), name()) :: {:ok | :ignore, Bee.t()} | {:error, :not_found}
   def stop_bee(queen, name) do
     GenServer.call(namegen(queen, Scheduler), {:stop_bee, name})
   end

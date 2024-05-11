@@ -288,7 +288,7 @@ defmodule HoneycombTest do
              "t2",
              fn -> :timer.sleep(20) end,
              timeout: 10
-           ) == {:error, {:gather, :timeout}}
+           ) == {:error, :gather_timeout}
 
     assert Honeycomb.bee(:gather_honey_sync_test_1, "t2") == nil
 
@@ -300,6 +300,14 @@ defmodule HoneycombTest do
     assert Honeycomb.gather_honey_sync(:gather_honey_sync_test_1, "t3", fn ->
              raise "I am an error too"
            end) == {:exception, %RuntimeError{message: "I am an error too"}}
+
+    # 测试匿名超时任务
+    assert Honeycomb.gather_honey_sync(
+             :gather_honey_sync_test_1,
+             :anon,
+             fn -> :timer.sleep(20) end,
+             timeout: 5
+           ) == {:error, :gather_timeout}
   end
 
   test "anon_name" do
