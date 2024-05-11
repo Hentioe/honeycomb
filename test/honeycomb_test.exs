@@ -300,7 +300,7 @@ defmodule HoneycombTest do
              "t2",
              fn -> :timer.sleep(20) end,
              timeout: 10
-           ) == {:error, :gather_timeout}
+           ) == {:error, :sync_timeout}
 
     assert Honeycomb.bee(:gather_honey_sync_test_1, "t2") == nil
 
@@ -319,7 +319,11 @@ defmodule HoneycombTest do
              :anon,
              fn -> :timer.sleep(20) end,
              timeout: 5
-           ) == {:error, :gather_timeout}
+           ) == {:error, :sync_timeout}
+
+    # 测试带有延迟的任务
+    assert Honeycomb.gather_honey_sync(:gather_honey_sync_test_1, "t4", fn -> :ok end, delay: 10) ==
+             :ok
   end
 
   test "anon_name" do

@@ -412,7 +412,7 @@ defmodule Honeycomb.Scheduler do
         queue = Queue.delete(bee, state.queue)
 
         # Update the bee
-        bee = %Bee{bee | timer: nil, status: :canceled}
+        bee = %Bee{bee | timer: nil, caller: nil, status: :canceled}
         # Update the bee status
         bees =
           if bee.stateless do
@@ -442,7 +442,7 @@ defmodule Honeycomb.Scheduler do
         DynamicSupervisor.terminate_child(namegen(state.id, Runner), bee.task_pid)
 
         # Update the bee
-        bee = %Bee{bee | status: :terminated, task_pid: nil}
+        bee = %Bee{bee | task_pid: nil, caller: nil, status: :terminated}
 
         # Update the bees
         bees =

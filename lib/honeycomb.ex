@@ -17,8 +17,8 @@ defmodule Honeycomb do
   @type naming :: name() | :anon
   @type bad_gather_status :: :running | :pending
   @type gather_opts :: [stateless: boolean(), delay: non_neg_integer()]
-  @type gather_sync_opts :: [timeout: timeout()]
-  @type bad_gather_sync :: {:exception, Exception.t()} | {:error, :gather_timeout}
+  @type gather_sync_opts :: [timeout: timeout(), delay: non_neg_integer()]
+  @type bad_gather_sync :: {:exception, Exception.t()} | {:error, :sync_timeout}
   @type bad_cancel_status :: :running | :done | :raised | :terminated | :canceled
 
   def start_link(opts \\ []) do
@@ -78,8 +78,8 @@ defmodule Honeycomb do
   def gather_honey_sync(queen, name, run, opts \\ []) do
     opts =
       opts
-      |> Keyword.put_new(:caller, self())
-      |> Keyword.put_new(:stateless, true)
+      |> Keyword.put(:caller, self())
+      |> Keyword.put(:stateless, true)
 
     {timeout, opts} = Keyword.pop(opts, :timeout, :infinity)
 
@@ -98,16 +98,22 @@ defmodule Honeycomb do
     end
   end
 
-  @spec handle_timeout(queen(), name()) :: {:error, :gather_timeout} | any()
+  @spec handle_timeout(queen(), name()) :: {:error, :sync_timeout} | any()
   defp handle_timeout(queen, name) do
     # Note: Timeout must remove bee, otherwise it will cause receiving confusion.
     case stop_bee(queen, name) do
-      {_, %{status: status} = bee} when status in [:done, :raised] ->
-        # The gap where the timeout occurred, the task stopped when it was completed, is treated as a non-timeout return.
-        bee.result
+      {:error, :not_found} ->
+        # If the bee is not found when stopping the task, it means the task has been completed.
+        # Proactively delete the next message in the process to avoid receiving confusion.
+        receive do
+          result -> result
+        after
+          0 ->
+            {:error, :sync_timeout}
+        end
 
       _ ->
-        {:error, :gather_timeout}
+        {:error, :sync_timeout}
     end
   end
 
