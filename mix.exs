@@ -11,6 +11,7 @@ defmodule Honeycomb.MixProject do
       deps: deps(),
       description:
         "A scheduling system and result collection center for asynchronous/background tasks.",
+      package: package(),
       source_url: "https://github.com/Hentioe/honeycomb",
       homepage_url: "https://github.com/Hentioe/honeycomb",
       docs: [
@@ -18,6 +19,13 @@ defmodule Honeycomb.MixProject do
         main: "readme",
         extras: ["README.md"]
       ]
+    ]
+  end
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/Hentioe/honeycomb"}
     ]
   end
 

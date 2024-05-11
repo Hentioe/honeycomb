@@ -1,5 +1,8 @@
 # Honeycomb 🐝🍯
 
+[![Module Version](https://img.shields.io/hexpm/v/honeycomb.svg)](https://hex.pm/packages/honeycomb)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/honeycomb/)
+
 Honeycomb is an Elixir library designed for executing asynchronous or background tasks that require persisting results in batches. Its core functionalities include asynchronous/background execution and concurrency control.
 
 ## Mastery Honeycomb
@@ -9,6 +12,18 @@ Imagine a honeycomb where you are the commander (you can envision yourself as th
 You can also limit the number of bees leaving the hive simultaneously (concurrency control) or make the bees wait for a moment before departing (delayed execution). This is the fundamental usage logic of the Honeycomb library.
 
 Furthermore, you can create and command the activities of multiple honeycombs without them interfering with each other.
+
+## Installation
+
+Add Honeycomb to your mix.exs dependencies:
+
+```elixir
+def deps do
+  [
+    {:honeycomb, "~> 0.1.0"},
+  ]
+end
+```
 
 ## Tutorial TOC
 
@@ -511,7 +526,7 @@ iex> Honeycomb.bee :my_honeycomb, "sleep-5"
 nil
 ```
 
-Stateless tasks can avoid the hassle of having to call `Honeycomb.harvest_honey/1` to actively clean up each time, providing convenience for tasks that don't care about the result.
+Stateless tasks can avoid the hassle of having to call `Honeycomb.harvest_honey/2` to actively clean up each time, providing convenience for tasks that don't care about the result.
 
 ### Multiple Services
 
