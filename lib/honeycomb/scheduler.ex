@@ -1,5 +1,7 @@
 defmodule Honeycomb.Scheduler do
-  @moduledoc false
+  @moduledoc """
+  The scheduler.
+  """
 
   use GenServer
 
@@ -54,16 +56,23 @@ defmodule Honeycomb.Scheduler do
     {:ok, init_arg}
   end
 
+  @doc false
   def done(queen, name, result) do
     GenServer.cast(namegen(queen), {:homing, :done, name, result})
   end
 
+  @doc false
   def raised(queen, name, result) do
     GenServer.cast(namegen(queen), {:homing, :raised, name, result})
   end
 
+  @spec queen_length(Honeycomb.queen()) :: non_neg_integer()
+  def queen_length(queen) do
+    GenServer.call(namegen(queen), :queue_length)
+  end
+
   @impl true
-  def handle_call({:brew, name, run, opts}, _from, state) do
+  def handle_call({:gather, name, run, opts}, _from, state) do
     bee = Map.get(state.bees, name)
 
     # Only bee is nil, or the bee status is not `:running` or `:pending`, can create a bee.
@@ -284,7 +293,7 @@ defmodule Honeycomb.Scheduler do
     {:noreply, %{state | bees: bees}}
   end
 
-  # Rejoin the queue according to the delay time. The logic is similar to `:brew` and `complete_bee`.
+  # Rejoin the queue according to the delay time. The logic is similar to `:gather` and `complete_bee`.
   defp retry_bee({:continue, delay}, bee, _result, state) do
     Logger.debug(
       "delayed retry bee: #{inspect(name: bee.name, delay: delay)}",

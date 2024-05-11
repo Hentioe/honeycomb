@@ -135,7 +135,7 @@ defmodule HoneycombTest do
     # t2 是一个队列中等待的任务，取消它
     {:ok, _} = Honeycomb.cancel_bee(:cancel_bee_test_2, "t2")
     # 检查队列长度（应该是 0）
-    assert Honeycomb.scheduler_queue_length(:cancel_bee_test_2) == 0
+    assert Honeycomb.Scheduler.queen_length(:cancel_bee_test_2) == 0
   end
 
   test "stop_bee/2" do
@@ -171,7 +171,7 @@ defmodule HoneycombTest do
     # t2 是一个队列中等待的任务，停止它
     {:ok, _} = Honeycomb.stop_bee(:stop_bee_test_2, "t2")
     # 检查队列长度（应该是 0）
-    assert Honeycomb.scheduler_queue_length(:stop_bee_test_2) == 0
+    assert Honeycomb.Scheduler.queen_length(:stop_bee_test_2) == 0
   end
 
   test "retry" do
@@ -288,7 +288,7 @@ defmodule HoneycombTest do
              "t2",
              fn -> :timer.sleep(20) end,
              timeout: 10
-           ) == {:error, {:brew, :timeout}}
+           ) == {:error, {:gather, :timeout}}
 
     assert Honeycomb.bee(:gather_honey_sync_test_1, "t2") == nil
 

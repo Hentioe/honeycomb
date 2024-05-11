@@ -1,10 +1,14 @@
 defmodule Honeycomb.Queen do
-  @moduledoc false
+  @moduledoc """
+  Helper for generating queen module.
+  """
 
   alias Honeycomb.FailureMode.Retry
 
   defmodule Opts do
-    @moduledoc false
+    @moduledoc """
+    Configuration options for queen.
+    """
 
     defstruct [:id, :concurrency, :failure_mode]
 

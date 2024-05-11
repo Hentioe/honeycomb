@@ -1,8 +1,12 @@
 defmodule Honeycomb.FailureMode do
-  @moduledoc false
+  @moduledoc """
+  Failure mode for Honeycomb.
+  """
 
   defmodule Retry do
-    @moduledoc false
+    @moduledoc """
+    Retry mode.
+    """
 
     defstruct max_times: 2, ensure: &__MODULE__.ensure/1
 

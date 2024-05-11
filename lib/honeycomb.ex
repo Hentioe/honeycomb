@@ -1,5 +1,7 @@
 defmodule Honeycomb do
-  @moduledoc false
+  @moduledoc """
+  A scheduling system and result collection center for asynchronous/background tasks.
+  """
 
   use Supervisor
 
@@ -10,12 +12,14 @@ defmodule Honeycomb do
 
   import Honeycomb.Helper
 
-  @type queen :: atom() | module()
+  @type queen :: atom()
   @type name :: String.t()
-  @type name_strategy :: name() | :anon
+  @type naming :: name() | :anon
+  @type bad_gather_status :: :running | :pending
   @type gather_opts :: [stateless: boolean(), delay: non_neg_integer()]
   @type gather_sync_opts :: [timeout: timeout()]
-  @type sync_error :: {:exception, Exception.t()} | {:error, {:brew, :timeout}}
+  @type bad_gather_sync :: {:exception, Exception.t()} | {:error, {:gather, :timeout}}
+  @type bad_cancel_status :: :running | :done | :raised | :terminated | :canceled
 
   def start_link(opts \\ []) do
     queen = Keyword.get(opts, :queen) || raise ArgumentError, "queen is required"
@@ -25,6 +29,7 @@ defmodule Honeycomb do
     Supervisor.start_link(__MODULE__, queen_opts, name: name)
   end
 
+  @doc false
   def child_spec([queen: queen] = opts) do
     %{
       id: namegen(queen.opts().id),
@@ -32,6 +37,8 @@ defmodule Honeycomb do
     }
   end
 
+  @doc false
+  @impl Supervisor
   def init(%{id: id} = opts) do
     children = [
       {__MODULE__.Scheduler,
@@ -46,28 +53,28 @@ defmodule Honeycomb do
     Supervisor.init(children, opts)
   end
 
-  @spec gather_honey(queen(), name_strategy(), Bee.run(), gather_opts()) ::
-          {:ok, Bee.t()} | {:error, any}
+  @spec gather_honey(queen(), naming(), Bee.run(), gather_opts()) ::
+          {:ok, Bee.t()} | {:error, bad_gather_status()}
   def gather_honey(queen, name, run, opts \\ []) do
-    GenServer.call(namegen(queen, Scheduler), {:brew, name, run, opts})
+    GenServer.call(namegen(queen, Scheduler), {:gather, name, run, opts})
   end
 
   @spec gather_honey_after(
           queen(),
-          name_strategy(),
+          naming(),
           Bee.run(),
           non_neg_integer(),
           gather_opts()
         ) ::
-          {:ok, Bee.t()} | {:error, any}
+          {:ok, Bee.t()} | {:error, bad_gather_status()}
   def gather_honey_after(queen, name, run, millisecond, opts \\ []) do
     opts = Keyword.merge(opts, delay: millisecond)
 
-    GenServer.call(namegen(queen, Scheduler), {:brew, name, run, opts})
+    GenServer.call(namegen(queen, Scheduler), {:gather, name, run, opts})
   end
 
-  @spec gather_honey_sync(queen(), name_strategy(), Bee.run(), gather_sync_opts()) ::
-          any() | sync_error()
+  @spec gather_honey_sync(queen(), naming(), Bee.run(), gather_sync_opts()) ::
+          bad_gather_sync() | any()
   def gather_honey_sync(queen, name, run, opts \\ []) do
     opts =
       opts
@@ -76,7 +83,7 @@ defmodule Honeycomb do
 
     {timeout, opts} = Keyword.pop(opts, :timeout, :infinity)
 
-    case GenServer.call(namegen(queen, Scheduler), {:brew, name, run, opts}) do
+    case GenServer.call(namegen(queen, Scheduler), {:gather, name, run, opts}) do
       {:ok, _} ->
         receive do
           result ->
@@ -86,7 +93,7 @@ defmodule Honeycomb do
             # Note: Timeout must remove bee, otherwise it will cause receiving confusion.
             {:ok, _} = stop_bee(queen, name)
 
-            {:error, {:brew, :timeout}}
+            {:error, {:gather, :timeout}}
         end
 
       other ->
@@ -111,7 +118,7 @@ defmodule Honeycomb do
   end
 
   @spec harvest_honey(atom, name()) ::
-          {:done, any} | {:raised, Exception.t()} | {:error, :not_found} | {:error, :undone}
+          {:done, any()} | {:raised, Exception.t()} | {:error, :not_found | :undone}
   def harvest_honey(queen, name) do
     # todo: 直接获取 bee 而不是 bees
     bees = GenServer.call(namegen(queen, Scheduler), :bees)
@@ -144,22 +151,18 @@ defmodule Honeycomb do
     GenServer.cast(namegen(queen, Scheduler), {:remove_bee, name})
   end
 
-  @spec terminate_bee(queen(), name()) :: {:ok, Bee.t()} | {:error, any}
+  @spec terminate_bee(queen(), name()) :: {:ok, Bee.t()} | {:error, :not_found | :task_not_found}
   def terminate_bee(queen, name) do
     GenServer.call(namegen(queen, Scheduler), {:terminate_bee, name})
   end
 
-  @spec cancel_bee(queen(), name()) :: {:ok, Bee.t()} | {:error, any}
+  @spec cancel_bee(queen(), name()) :: {:ok, Bee.t()} | {:error, :not_found | bad_cancel_status()}
   def cancel_bee(queen, name) do
     GenServer.call(namegen(queen, Scheduler), {:cancel_bee, name})
   end
 
-  @spec stop_bee(queen(), name()) :: {:ok | :ignore, Bee.t()} | {:error, any}
+  @spec stop_bee(queen(), name()) :: {:ok | :ignore, Bee.t()}
   def stop_bee(queen, name) do
     GenServer.call(namegen(queen, Scheduler), {:stop_bee, name})
-  end
-
-  def scheduler_queue_length(queen) do
-    GenServer.call(namegen(queen, Scheduler), :queue_length)
   end
 end

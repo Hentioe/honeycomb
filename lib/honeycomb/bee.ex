@@ -1,5 +1,7 @@
 defmodule Honeycomb.Bee do
-  @moduledoc false
+  @moduledoc """
+  Task carrier.
+  """
 
   defstruct [
     :name,
