@@ -31,7 +31,7 @@ defmodule Honeycomb.Factory do
     end
   end
 
-  def retry_enqueue_test1_ensure(_error) do
+  def retry_enqueue_ensure1(_error) do
     if RetryTimes.current() == 4 do
       # 总是在第 4 次重试时取消
 
