@@ -8,7 +8,16 @@ defmodule Honeycomb.MixProject do
       elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      description:
+        "A scheduling system and result collection center for asynchronous/background tasks.",
+      source_url: "https://github.com/Hentioe/honeycomb",
+      homepage_url: "https://github.com/Hentioe/honeycomb",
+      docs: [
+        # The main page in the docs
+        main: "readme",
+        extras: ["README.md"]
+      ]
     ]
   end
 
@@ -38,7 +47,8 @@ defmodule Honeycomb.MixProject do
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.32", only: :dev, runtime: false}
     ]
   end
 end
