@@ -183,7 +183,7 @@ iex> Honeycomb.harvest_honey :my_honeycomb, "sleep-10"
 {:done, :ok}
 ```
 
-It returns `:done` and `:ok`, respectively representing the status after execution is completed and the execution result (the return value of `:timer.sleep/1`). Sometimes, done here might be `raised`, indicating that an error occurred during execution.
+It returns `:done` and `:ok`, respectively representing the status after execution is completed and the execution result (the return value of `:timer.sleep/1`). Sometimes, `done` here might be `raised`, indicating that an error occurred during execution.
 
 Apart from that, everything else will be in the classic error return structure `{:error, reason}`. The error reasons include:
 
@@ -290,7 +290,7 @@ Theoretically, any idempotent call can be wrapped in this way to make the call m
 Once a bee is running, calling `Honeycomb.terminate_bee/2` can terminate it. First, let's create a task that sleeps for 10 seconds, outputs `:hello` to the console, and returns it as the result:
 
 ```elixir
-iex> Honeycomb.gather_honey :my_honeycomb1, "hello", fn -> :timer.sleep(10 * 1000); IO.inspect(:hello) end
+iex> Honeycomb.gather_honey :my_honeycomb, "hello", fn -> :timer.sleep(10 * 1000); IO.inspect(:hello) end
 {:ok,
  %Honeycomb.Bee{
    name: "hello",
@@ -310,7 +310,7 @@ iex> Honeycomb.gather_honey :my_honeycomb1, "hello", fn -> :timer.sleep(10 * 100
 Next, let's terminate it while it's still running within the 10 seconds:
 
 ```elixir
-iex> Honeycomb.terminate_bee :my_honeycomb1, "hello"
+iex> Honeycomb.terminate_bee :my_honeycomb, "hello"
 {:ok,
  %Honeycomb.Bee{
    name: "hello",
@@ -382,7 +382,7 @@ iex> Honeycomb.gather_honey :my_honeycomb, :anon, fn -> :ok end
 Using the `Honeycomb.gather_honey_sync/4` function, you can simulate synchronous calls. It blocks the current calling process until it receives the execution result and returns the result as the return value. In plain terms, this function can wait for the task to complete execution and return the task's result, just like synchronous task execution:
 
 ```elixir
-iex> Honeycomb.gather_honey_sync :sender, :anon, fn -> :timer.sleep(2 * 1000); :hello end
+iex> Honeycomb.gather_honey_sync :my_honeycomb, :anon, fn -> :timer.sleep(2 * 1000); :hello end
 :hello
 ```
 
