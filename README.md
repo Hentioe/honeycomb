@@ -5,6 +5,8 @@
 
 Honeycomb is an Elixir library designed for executing asynchronous or background tasks that require persisting results in batches. Its core functionalities include asynchronous/background execution and concurrency control.
 
+[中文教程](https://blog.hentioe.dev/posts/honeycomb-introduction.html)
+
 ## Mastery Honeycomb
 
 Imagine a honeycomb where you are the commander (you can envision yourself as the queen bee). You assign "gather honey" tasks to each bee, and the bees execute them one by one. Once the honey gathering is complete, the bees return to the hive, gradually filling the honeycomb with honey ready for harvesting.
