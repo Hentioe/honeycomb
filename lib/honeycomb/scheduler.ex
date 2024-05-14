@@ -176,14 +176,6 @@ defmodule Honeycomb.Scheduler do
   def handle_cast({:homing, :raised, name, result}, state) do
     bee = Map.get(state.bees, name)
 
-    retry? = fn ->
-      if is_struct(state.failure_mode, Retry) do
-        state.failure_mode.max_times > bee.retry
-      else
-        false
-      end
-    end
-
     cond do
       is_nil(bee) ->
         # Bee not found
@@ -192,7 +184,7 @@ defmodule Honeycomb.Scheduler do
         # Recheck the queue
         Process.send_after(self(), :check_queue, 0)
 
-      retry?.() ->
+      need_retry?(state.failure_mode, bee, state.id) ->
         # Retry the bee
         state.failure_mode |> safe_ensure(result, state.id) |> retry_bee(bee, result, state)
 
@@ -265,6 +257,19 @@ defmodule Honeycomb.Scheduler do
         {:noreply, state}
     end
   end
+
+  defp need_retry?(failure_mode, bee, id) when is_struct(failure_mode, Retry) do
+    if failure_mode.max_times > bee.retry do
+      true
+    else
+      # Retry times depleted
+      Logger.warning("retry times depleted: #{bee.name}", honeycomb: id)
+
+      false
+    end
+  end
+
+  defp need_retry?(_failure_mode, _bee, _id), do: false
 
   defp retry_bee(:continue, bee, _result, state) do
     Logger.debug("retry bee: #{bee.name}", honeycomb: state.id)
