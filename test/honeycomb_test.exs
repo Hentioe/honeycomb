@@ -191,7 +191,7 @@ defmodule HoneycombTest do
     )
 
     def_queen(__MODULE__.RetryTest2,
-      id: :retry_test_2,
+      id: :retry2,
       failure_mode: %Honeycomb.FailureMode.Retry{
         max_times: 5,
         ensure: &Factory.retry_test2_ensure/1
@@ -217,11 +217,11 @@ defmodule HoneycombTest do
     assert Honeycomb.bee(:retry_1, "t2").result == %RuntimeError{message: "I am an error"}
 
     # 用自定义 `ensure/1` 函数的 Honeycomb 运行一个会报错的任务
-    Honeycomb.gather_honey(:retry_test_2, "t1", fn -> raise "I am an error" end)
+    Honeycomb.gather_honey(:retry2, "t1", fn -> raise "I am an error" end)
     :timer.sleep(5)
-    assert Honeycomb.bee(:retry_test_2, "t1").status == :raised
-    assert Honeycomb.bee(:retry_test_2, "t1").retry == 3
-    assert Honeycomb.bee(:retry_test_2, "t1").result == %RuntimeError{message: "I am an error"}
+    assert Honeycomb.bee(:retry2, "t1").status == :raised
+    assert Honeycomb.bee(:retry2, "t1").retry == 3
+    assert Honeycomb.bee(:retry2, "t1").result == %RuntimeError{message: "I am an error"}
   end
 
   test "retry enqueue" do
