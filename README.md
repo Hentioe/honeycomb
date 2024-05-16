@@ -22,7 +22,7 @@ Add Honeycomb to your mix.exs dependencies:
 ```elixir
 def deps do
   [
-    {:honeycomb, "~> 0.1.0"},
+    {:honeycomb, "~> 0.1.1"},
   ]
 end
 ```
